@@ -1,0 +1,552 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Dice5, Search, CheckCircle2 } from 'lucide-react';
+import { Milestone, MilestoneCategory, User, Difficulty, Group } from './types';
+import { MilestoneCard } from './components/MilestoneCard';
+import { AuthScreen } from './components/AuthScreen';
+import { GroupDashboard } from './components/GroupDashboard';
+import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends } from './services/storageService';
+import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from './constants';
+import { generateCreativeMilestones } from './services/geminiService';
+
+// --- Challenge Setup Modal Component (Internal) ---
+interface ChallengeSetupProps {
+  milestone: Milestone | null;
+  onClose: () => void;
+  currentUser: User;
+  onStart: () => void;
+}
+
+const ChallengeSetupModal: React.FC<ChallengeSetupProps> = ({ milestone, onClose, currentUser, onStart }) => {
+  const [target, setTarget] = useState<'GROUP' | 'FRIEND' | 'STRANGER'>('GROUP');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [selectedFriendId, setSelectedFriendId] = useState<string>('');
+  
+  const [userGroups, setUserGroups] = useState<Group[]>([]);
+  const [userFriends, setUserFriends] = useState<User[]>([]);
+  
+  // Friend Search
+  const [friendSearchTerm, setFriendSearchTerm] = useState('');
+
+  // Time Selection
+  const [weeks, setWeeks] = useState(0);
+  const [days, setDays] = useState(1);
+  const [hours, setHours] = useState(0);
+  const [minutes, setMinutes] = useState(0);
+  
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setUserGroups(getUserGroups(currentUser.id));
+      setUserFriends(getUserFriends(currentUser.id));
+    }
+  }, [currentUser]);
+
+  if (!milestone) return null;
+
+  const getTotalMinutes = () => {
+    return (weeks * 7 * 24 * 60) + (days * 24 * 60) + (hours * 60) + minutes;
+  };
+
+  const handleStart = async () => {
+    setLoading(true);
+    const durationMins = getTotalMinutes();
+
+    if (durationMins <= 0) {
+      alert("Bitte wähle eine Dauer.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (target === 'GROUP') {
+        if (!selectedGroupId) return;
+        await startGroupChallenge(selectedGroupId, milestone.title, milestone.description, durationMins);
+      } else if (target === 'FRIEND') {
+        if (!selectedFriendId) return;
+        const friend = userFriends.find(f => f.id === selectedFriendId);
+        const g = await createGroup(currentUser.id, `Battle vs ${friend?.username || 'Friend'}`, [selectedFriendId]);
+        await startGroupChallenge(g.id, milestone.title, milestone.description, durationMins);
+      } else if (target === 'STRANGER') {
+        const g = await createGroup(currentUser.id, `Battle vs Unknown`);
+        await startGroupChallenge(g.id, milestone.title, milestone.description, durationMins);
+      }
+      onStart();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isReady = () => {
+      if (getTotalMinutes() <= 0) return false;
+      if (target === 'GROUP' && !selectedGroupId) return false;
+      if (target === 'FRIEND' && !selectedFriendId) return false;
+      return true;
+  };
+
+  const filteredFriends = userFriends.filter(f => 
+    f.username.toLowerCase().includes(friendSearchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+        <div className="p-6 bg-slate-900 text-white flex-shrink-0">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Swords className="w-6 h-6 text-amber-400" />
+            Challenge Mode
+          </h2>
+          <p className="text-slate-400 text-sm mt-1">Konfiguriere dein Battle</p>
+        </div>
+        
+        <div className="p-6 overflow-y-auto">
+          <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+            <h3 className="font-bold text-indigo-900">{milestone.title}</h3>
+            <p className="text-indigo-700 text-sm mt-1">{milestone.description}</p>
+          </div>
+
+          {/* Time Picker */}
+          <div className="mb-6">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
+              <Clock className="w-4 h-4 text-slate-400" /> Zeitlimit
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+               <div>
+                  <label className="text-[10px] text-slate-400 uppercase font-bold">Wochen</label>
+                  <select value={weeks} onChange={e => setWeeks(Number(e.target.value))} className="w-full p-2 border rounded-lg bg-white cursor-pointer">
+                    {[...Array(5)].map((_, i) => <option key={i} value={i}>{i}</option>)}
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] text-slate-400 uppercase font-bold">Tage</label>
+                  <select value={days} onChange={e => setDays(Number(e.target.value))} className="w-full p-2 border rounded-lg bg-white cursor-pointer">
+                    {[...Array(7)].map((_, i) => <option key={i} value={i}>{i}</option>)}
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] text-slate-400 uppercase font-bold">Std</label>
+                  <select value={hours} onChange={e => setHours(Number(e.target.value))} className="w-full p-2 border rounded-lg bg-white cursor-pointer">
+                    {[...Array(24)].map((_, i) => <option key={i} value={i}>{i}</option>)}
+                  </select>
+               </div>
+               <div>
+                  <label className="text-[10px] text-slate-400 uppercase font-bold">Min</label>
+                  <select value={minutes} onChange={e => setMinutes(Number(e.target.value))} className="w-full p-2 border rounded-lg bg-white cursor-pointer">
+                     <option value={0}>0</option>
+                     <option value={15}>15</option>
+                     <option value={30}>30</option>
+                     <option value={45}>45</option>
+                  </select>
+               </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <button 
+              onClick={() => setTarget('GROUP')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${target === 'GROUP' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}
+            >
+              <Users className="w-6 h-6" />
+              <span className="text-xs font-bold">Gruppe</span>
+            </button>
+            <button 
+              onClick={() => setTarget('FRIEND')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${target === 'FRIEND' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}
+            >
+              <UserPlus className="w-6 h-6" />
+              <span className="text-xs font-bold">Freund</span>
+            </button>
+            <button 
+              onClick={() => setTarget('STRANGER')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${target === 'STRANGER' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}
+            >
+              <Ghost className="w-6 h-6" />
+              <span className="text-xs font-bold">Fremder</span>
+            </button>
+          </div>
+
+          {target === 'GROUP' && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Wähle eine Gruppe</label>
+              {userGroups.length > 0 ? (
+                <select 
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                  onChange={(e) => setSelectedGroupId(e.target.value)}
+                  value={selectedGroupId}
+                >
+                  <option value="" disabled>-- Bitte wählen --</option>
+                  {userGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
+                  Keine Gruppen vorhanden.
+                </div>
+              )}
+            </div>
+          )}
+
+          {target === 'FRIEND' && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Wähle einen Freund</label>
+              
+              {userFriends.length > 0 ? (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                   <div className="p-2 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                      <Search className="w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Freunde suchen..." 
+                        value={friendSearchTerm}
+                        onChange={(e) => setFriendSearchTerm(e.target.value)}
+                        className="bg-transparent outline-none w-full text-sm"
+                      />
+                   </div>
+                   <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                      {filteredFriends.length > 0 ? filteredFriends.map(f => (
+                         <div 
+                           key={f.id} 
+                           onClick={() => setSelectedFriendId(f.id)}
+                           className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${selectedFriendId === f.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-slate-50 border border-transparent'}`}
+                         >
+                            <img src={f.avatar} alt={f.username} className="w-8 h-8 rounded-full bg-white border border-slate-200" />
+                            <span className={`text-sm font-medium ${selectedFriendId === f.id ? 'text-indigo-700' : 'text-slate-700'}`}>{f.username}</span>
+                            {selectedFriendId === f.id && <CheckCircle2 className="w-4 h-4 text-indigo-500 ml-auto" />}
+                         </div>
+                      )) : (
+                        <div className="text-xs text-slate-400 text-center py-4">Niemanden gefunden.</div>
+                      )}
+                   </div>
+                </div>
+              ) : (
+                <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
+                   Du hast noch keine Freunde hinzugefügt. (Gehe zu Community)
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 p-6 pt-0 mt-auto bg-white border-t border-slate-50">
+            <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-medium hover:bg-slate-50 rounded-xl">Abbrechen</button>
+            <button 
+              onClick={handleStart}
+              disabled={loading || !isReady()}
+              className="flex-[2] py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Starte...' : 'Challenge starten!'}
+            </button>
+          </div>
+      </div>
+    </div>
+  );
+};
+
+
+function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // App State
+  const [activeTab, setActiveTab] = useState<'feed' | 'groups'>('feed');
+  const [isManualOpen, setIsManualOpen] = useState(false);
+  
+  // Feed Generator State
+  const [genCategory, setGenCategory] = useState<string>('MIX');
+  const [genDifficulty, setGenDifficulty] = useState<Difficulty | 'ALL'>('ALL');
+  const [genContext, setGenContext] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Feed Data
+  const [feedMilestones, setFeedMilestones] = useState<Milestone[]>(INITIAL_MILESTONES);
+
+  // Challenge Interaction
+  const [selectedChallenge, setSelectedChallenge] = useState<Milestone | null>(null);
+
+  // Manual Creation State
+  const [manualTitle, setManualTitle] = useState('');
+  const [manualDesc, setManualDesc] = useState('');
+  const [manualCat, setManualCat] = useState(MilestoneCategory.FUN);
+  const [manualDiff, setManualDiff] = useState(Difficulty.MEDIUM);
+
+  useEffect(() => {
+    const user = getCurrentSessionUser();
+    if (user) {
+      setCurrentUser(user);
+    }
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      updateUserMilestones(currentUser.id, currentUser.milestones);
+    }
+  }, [currentUser]);
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+  };
+
+  const handleGenerateFeed = async () => {
+    setIsGenerating(true);
+    try {
+      // Request 10 items
+      const newFeed = await generateCreativeMilestones(genCategory, genDifficulty, genContext, 10);
+      if (newFeed.length > 0) {
+        setFeedMilestones(newFeed);
+      }
+    } catch (e) {
+      console.error("Failed to generate feed");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleManualCreate = () => {
+    if (!currentUser || !manualTitle) return;
+    const newM: Milestone = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: manualTitle,
+      description: manualDesc || manualTitle,
+      category: manualCat,
+      difficulty: manualDiff,
+      proofType: 'PHOTO', // Default for manual
+      completed: false
+    };
+    // Add to user collection AND feed for immediate access
+    setCurrentUser({
+      ...currentUser,
+      milestones: [newM, ...currentUser.milestones]
+    });
+    setFeedMilestones(prev => [newM, ...prev]);
+    
+    setManualTitle('');
+    setManualDesc('');
+    setIsManualOpen(false);
+  };
+
+  if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-900 text-white">Lade Challenge Me...</div>;
+
+  if (!currentUser) {
+    return <AuthScreen onSuccess={setCurrentUser} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+      
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-slate-900 p-1.5 rounded-lg transform -rotate-3">
+              <Zap className="w-5 h-5 text-amber-400" />
+            </div>
+            <h1 className="text-xl font-black italic tracking-tighter text-slate-900 hidden sm:block">
+              CHALLENGE<span className="text-indigo-600">ME</span>
+            </h1>
+            
+            {/* Nav Tabs */}
+            <div className="flex ml-6 bg-slate-100 p-1 rounded-lg">
+              <button 
+                onClick={() => setActiveTab('feed')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'feed' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Feed
+              </button>
+              <button 
+                onClick={() => setActiveTab('groups')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Community
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+             <div className="hidden sm:flex items-center gap-2 mr-2">
+               <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        
+        {activeTab === 'feed' && (
+          <>
+            {/* BIG FEED GENERATOR HEADER */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl p-8 mb-10 shadow-xl shadow-indigo-200 text-white">
+               {/* Decor circles */}
+               <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+               <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-purple-500/30 rounded-full blur-3xl"></div>
+               
+               <div className="relative z-10">
+                 <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h2 className="text-3xl font-black tracking-tight mb-2 flex items-center gap-3">
+                        <Dice5 className="w-8 h-8 text-amber-300" />
+                        Dein Challenge Generator
+                      </h2>
+                      <p className="text-indigo-100 font-medium max-w-lg leading-relaxed">
+                        Lust auf was Neues? Konfiguriere deinen Feed und lass dir von der KI 10 frische, maßgeschneiderte Challenges erstellen.
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={() => setIsManualOpen(!isManualOpen)}
+                      className="hidden md:flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all backdrop-blur-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Manuell erstellen
+                    </button>
+                 </div>
+
+                 <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                       <div>
+                          <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Kategorie</label>
+                          <select 
+                            value={genCategory}
+                            onChange={(e) => setGenCategory(e.target.value)}
+                            className="w-full bg-white text-slate-800 rounded-xl px-3 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                          >
+                             <option value="MIX">🎲 Bunter Mix</option>
+                             {Object.values(MilestoneCategory).map(c => <option key={c} value={c}>{CATEGORY_EMOJIS[c] || ''} {c}</option>)}
+                          </select>
+                       </div>
+                       <div>
+                          <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Level</label>
+                          <select 
+                            value={genDifficulty}
+                            onChange={(e) => setGenDifficulty(e.target.value as any)}
+                            className="w-full bg-white text-slate-800 rounded-xl px-3 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                          >
+                             <option value="ALL">🚀 Zufall</option>
+                             {Object.values(Difficulty).map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                       </div>
+                       <div className="md:col-span-1">
+                          <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Kontext (Optional)</label>
+                          <input 
+                            type="text" 
+                            placeholder="z.B. 'Im Büro', 'Regenwetter'" 
+                            value={genContext}
+                            onChange={(e) => setGenContext(e.target.value)}
+                            className="w-full bg-white/90 text-slate-800 placeholder-slate-400 rounded-xl px-3 py-3 font-medium outline-none focus:ring-2 focus:ring-amber-400"
+                          />
+                       </div>
+                       <button 
+                        onClick={handleGenerateFeed}
+                        disabled={isGenerating}
+                        className="w-full bg-amber-400 hover:bg-amber-300 text-amber-900 rounded-xl px-4 py-3 font-black text-center shadow-lg shadow-amber-900/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                       >
+                          {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                          {isGenerating ? 'Generiere...' : '10 NEUE KARTEN'}
+                       </button>
+                    </div>
+                 </div>
+               </div>
+            </div>
+
+            {/* Manual Creator Panel (Toggable) */}
+            {isManualOpen && (
+              <div className="mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm animate-in slide-in-from-top-4 fade-in duration-300">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="font-bold text-lg">Eigene Challenge erstellen</h3>
+                  <button onClick={() => setIsManualOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input 
+                    placeholder="Titel der Challenge" 
+                    className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={manualTitle} onChange={e => setManualTitle(e.target.value)}
+                  />
+                  <select 
+                    className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={manualCat} onChange={e => setManualCat(e.target.value as any)}
+                  >
+                    {Object.values(MilestoneCategory).map(c => <option key={c} value={c}>{CATEGORY_EMOJIS[c] || ''} {c}</option>)}
+                  </select>
+                  <select 
+                    className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={manualDiff} onChange={e => setManualDiff(e.target.value as any)}
+                  >
+                     {Object.values(Difficulty).map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <button 
+                    onClick={handleManualCreate}
+                    className="bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800"
+                  >
+                    Erstellen
+                  </button>
+                </div>
+                <textarea 
+                  placeholder="Beschreibung..." 
+                  className="w-full mt-4 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 h-20"
+                  value={manualDesc} onChange={e => setManualDesc(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {feedMilestones.map(m => (
+                <div key={m.id} className="h-full">
+                  <MilestoneCard 
+                    milestone={m} 
+                    onChallenge={setSelectedChallenge}
+                  />
+                </div>
+              ))}
+              {feedMilestones.length === 0 && (
+                <div className="col-span-full py-20 text-center">
+                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Ghost className="w-10 h-10 text-slate-300" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800">Gähnende Leere</h3>
+                  <p className="text-slate-500">Klick auf "10 NEUE KARTEN" um zu starten!</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'groups' && (
+          <GroupDashboard 
+            currentUser={currentUser} 
+            onUpdate={() => {
+               const updated = getCurrentSessionUser();
+               if (updated) setCurrentUser(updated);
+            }} 
+          />
+        )}
+
+      </main>
+
+      {/* Modals */}
+      
+      <ChallengeSetupModal 
+        milestone={selectedChallenge}
+        onClose={() => setSelectedChallenge(null)}
+        currentUser={currentUser}
+        onStart={() => {
+          setSelectedChallenge(null);
+          setActiveTab('groups'); // Switch to community to see the new battle
+        }}
+      />
+      
+    </div>
+  );
+}
+
+export default App;
