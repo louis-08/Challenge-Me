@@ -94,32 +94,32 @@ export const INITIAL_MILESTONES: Milestone[] = [
 ];
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  [MilestoneCategory.TRAVEL]: '#3b82f6', 
-  [MilestoneCategory.SKILLS]: '#8b5cf6', 
-  [MilestoneCategory.CAREER]: '#64748b', 
-  [MilestoneCategory.WELLNESS]: '#10b981', 
-  [MilestoneCategory.ADVENTURE]: '#f59e0b', 
-  [MilestoneCategory.RELATIONSHIPS]: '#ec4899', 
-  [MilestoneCategory.CREATIVITY]: '#a855f7', 
-  [MilestoneCategory.FINANCE]: '#22c55e', 
-  [MilestoneCategory.FUN]: '#f43f5e', 
+  ["TRAVEL"]: '#3b82f6', 
+  ["SKILLS"]: '#8b5cf6', 
+  ["CAREER"]: '#64748b', 
+  ["WELLNESS"]: '#10b981', 
+  ["ADVENTURE"]: '#f59e0b', 
+  ["RELATIONSHIPS"]: '#ec4899', 
+  ["CREATIVITY"]: '#a855f7', 
+  ["FINANCE"]: '#22c55e', 
+  ["FUN"]: '#f43f5e', 
 };
 
 export const DIFFICULTY_COLORS: Record<string, string> = {
-  [Difficulty.EASY]: '#4ade80',    // green
-  [Difficulty.MEDIUM]: '#facc15',  // yellow
-  [Difficulty.HARD]: '#f87171',    // red
-  [Difficulty.INSANE]: '#c026d3',  // purple
+  ["EASY"]: '#4ade80',    // green
+  ["MEDIUM"]: '#facc15',  // yellow
+  ["HARD"]: '#f87171',    // red
+  ["INSANE"]: '#c026d3',  // purple
 };
 
 export const CATEGORY_EMOJIS: Record<string, string> = {
-  [MilestoneCategory.TRAVEL]: '✈️',
-  [MilestoneCategory.SKILLS]: '🧠',
-  [MilestoneCategory.CAREER]: '💼',
-  [MilestoneCategory.WELLNESS]: '🌿',
-  [MilestoneCategory.ADVENTURE]: '🌋',
-  [MilestoneCategory.RELATIONSHIPS]: '❤️',
-  [MilestoneCategory.CREATIVITY]: '🎨',
-  [MilestoneCategory.FINANCE]: '💰',
-  [MilestoneCategory.FUN]: '🤪',
+  ["TRAVEL"]: '✈️',
+  ["SKILLS"]: '🧠',
+  ["CAREER"]: '💼',
+  ["WELLNESS"]: '🌿',
+  ["ADVENTURE"]: '🌋',
+  ["RELATIONSHIPS"]: '❤️',
+  ["CREATIVITY"]: '🎨',
+  ["FINANCE"]: '💰',
+  ["FUN"]: '🤪',
 };

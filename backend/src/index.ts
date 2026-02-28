@@ -8,11 +8,15 @@ import rateLimit from 'express-rate-limit';
 import authRouter from './routes/auth';
 import usersRouter from './routes/users';
 import groupsRouter from './routes/groups';
+import aiRouter from './routes/ai';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://crispy-space-trout-wxgxrx7wrx7cgr6g-3000.app.github.dev';
 const IS_PROD = process.env.NODE_ENV === 'production';
+
+// --- Trust proxy setting ---
+app.set('trust proxy', 1);
 
 // --- Security middleware ---
 app.use(helmet());
@@ -32,7 +36,7 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 
 // --- Body parsing ---
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 // --- CSRF protection (Double Submit Cookie pattern) ---
@@ -48,11 +52,17 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
     res.cookie(CSRF_COOKIE, csrfToken, {
       httpOnly: false, // intentionally readable by JS
       secure: IS_PROD,
-      sameSite: 'strict'
+      sameSite: 'none'
     });
   }
 
-  // Validate on state-changing requests
+  // In development, skip CSRF validation (cross-origin cookie issues)
+  if (!IS_PROD) {
+    next();
+    return;
+  }
+
+  // Validate on state-changing requests (production only)
   if (!CSRF_SAFE_METHODS.has(req.method)) {
     const headerToken = req.get(CSRF_HEADER);
     if (!headerToken || headerToken !== csrfToken) {
@@ -68,6 +78,7 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
 app.use('/auth', authRouter);
 app.use('/users', usersRouter);
 app.use('/groups', groupsRouter);
+app.use('/ai', aiRouter);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -80,7 +91,12 @@ app.use((_req, res) => {
 });
 
 // --- Error handler ---
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error & { type?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err.type === 'entity.too.large') {
+    res.status(413).json({ error: 'Upload ist zu groß. Bitte kürzeres oder stärker komprimiertes Video verwenden.' });
+    return;
+  }
+
   console.error(err.stack);
   res.status(500).json({ error: 'Interner Serverfehler.' });
 });

@@ -1,7 +1,7 @@
 import { User, Group, Milestone, MediaItem } from '../types';
 import { INITIAL_MILESTONES } from '../constants';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://crispy-space-trout-wxgxrx7wrx7cgr6g-3001.app.github.dev';
 
 function getCsrfToken(): string {
   return document.cookie
