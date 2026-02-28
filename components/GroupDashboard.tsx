@@ -23,6 +23,7 @@ interface GroupDashboardProps {
 export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onUpdate }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
+  const [usersCache, setUsersCache] = useState<Record<string, User>>({});
   const [view, setView] = useState<'list' | 'create' | 'join' | 'friends'>('list');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   
@@ -57,11 +58,20 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
     loadData();
   }, [currentUser.id]);
 
-  const loadData = () => {
-    const userGroups = getUserGroups(currentUser.id);
-    const userFriends = getUserFriends(currentUser.id);
+  const loadData = async () => {
+    const [userGroups, userFriends] = await Promise.all([
+      getUserGroups(currentUser.id),
+      getUserFriends(currentUser.id)
+    ]);
     setGroups(userGroups);
     setFriends(userFriends);
+
+    // Pre-fetch all member users for display
+    const allMemberIds = [...new Set(userGroups.flatMap(g => g.memberIds))];
+    const fetched = await Promise.all(allMemberIds.map(id => getUserById(id)));
+    const cache: Record<string, User> = {};
+    fetched.forEach(u => { if (u) cache[u.id] = u; });
+    setUsersCache(cache);
 
     if (userGroups.length > 0 && !selectedGroupId) {
       setSelectedGroupId(userGroups[0].id);
@@ -158,7 +168,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
     setFriendSuccess('');
     try {
       await addFriend(currentUser.id, friendSearch);
-      setFriends(getUserFriends(currentUser.id));
+      setFriends(await getUserFriends(currentUser.id));
       setFriendSuccess(`Freund ${friendSearch} hinzugefügt!`);
       setFriendSearch('');
     } catch (e: any) {
@@ -170,8 +180,18 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
 
   // --- Challenge Handlers ---
 
-  const refreshGroup = (updatedGroup: Group) => {
+  const refreshGroup = async (updatedGroup: Group) => {
     setGroups(prev => prev.map(g => g.id === updatedGroup.id ? updatedGroup : g));
+    // Fetch any new members not yet in cache
+    const missing = updatedGroup.memberIds.filter(id => !usersCache[id]);
+    if (missing.length > 0) {
+      const fetched = await Promise.all(missing.map(id => getUserById(id)));
+      setUsersCache(prev => {
+        const next = { ...prev };
+        fetched.forEach(u => { if (u) next[u.id] = u; });
+        return next;
+      });
+    }
   };
 
   const handleStartChallenge = async () => {
@@ -338,7 +358,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
               <h4 className="text-xs font-bold uppercase text-amber-800 tracking-wider mb-3">Teilnehmer Status</h4>
               <div className="space-y-2">
                  {group.memberIds.map(memberId => {
-                    const member = getUserById(memberId);
+                    const member = usersCache[memberId];
                     const submitted = challenge.submissions.some(s => s.userId === memberId);
                     
                     return (
@@ -468,7 +488,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
         
         <div className="space-y-8">
           {challenge.submissions.map(sub => {
-             const user = getUserById(sub.userId);
+             const user = usersCache[sub.userId];
              const isMe = sub.userId === currentUser.id;
              const myVote = sub.ratings.find(r => r.voterId === currentUser.id)?.score || 0;
              const avgScore = sub.ratings.reduce((acc, curr) => acc + curr.score, 0) / (sub.ratings.length || 1);
@@ -749,7 +769,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                     </h3>
                     <div className="space-y-3">
                         {selectedGroup.pastChallenges.map(past => {
-                            const winner = past.winnerId ? getUserById(past.winnerId) : null;
+                            const winner = past.winnerId ? usersCache[past.winnerId] : null;
                             return (
                             <div key={past.id} className="bg-white p-4 rounded-lg border border-slate-200 flex items-center justify-between">
                                 <div>
