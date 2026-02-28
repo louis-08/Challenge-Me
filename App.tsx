@@ -37,8 +37,8 @@ const ChallengeSetupModal: React.FC<ChallengeSetupProps> = ({ milestone, onClose
 
   useEffect(() => {
     if (currentUser) {
-      setUserGroups(getUserGroups(currentUser.id));
-      setUserFriends(getUserFriends(currentUser.id));
+      getUserGroups(currentUser.id).then(setUserGroups);
+      getUserFriends(currentUser.id).then(setUserFriends);
     }
   }, [currentUser]);
 
@@ -273,11 +273,10 @@ function App() {
   const [manualDiff, setManualDiff] = useState(Difficulty.MEDIUM);
 
   useEffect(() => {
-    const user = getCurrentSessionUser();
-    if (user) {
-      setCurrentUser(user);
-    }
-    setIsLoading(false);
+    getCurrentSessionUser().then(user => {
+      if (user) setCurrentUser(user);
+      setIsLoading(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -287,7 +286,7 @@ function App() {
   }, [currentUser]);
 
   const handleLogout = () => {
-    logoutUser();
+    logoutUser().catch(() => {});
     setCurrentUser(null);
   };
 
@@ -525,8 +524,9 @@ function App() {
           <GroupDashboard 
             currentUser={currentUser} 
             onUpdate={() => {
-               const updated = getCurrentSessionUser();
-               if (updated) setCurrentUser(updated);
+               getCurrentSessionUser().then(updated => {
+                 if (updated) setCurrentUser(updated);
+               });
             }} 
           />
         )}
