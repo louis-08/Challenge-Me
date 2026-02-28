@@ -48,6 +48,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   // Submission State
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [proofComment, setProofComment] = useState('');
+  const [isCompressingMedia, setIsCompressingMedia] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Live Timer State
@@ -216,18 +217,122 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const compressVideoTo480p = async (file: File): Promise<File> => {
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const video = document.createElement('video');
+      video.src = objectUrl;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'metadata';
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Video-Metadaten konnten nicht geladen werden.'));
+      });
+
+      const sourceWidth = video.videoWidth || 640;
+      const sourceHeight = video.videoHeight || 360;
+      const scale = Math.min(1, 480 / sourceHeight);
+      const targetWidth = Math.max(2, Math.floor((sourceWidth * scale) / 2) * 2);
+      const targetHeight = Math.max(2, Math.floor((sourceHeight * scale) / 2) * 2);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Canvas-Kontext konnte nicht erstellt werden.');
+      }
+
+      const stream = canvas.captureStream(20);
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+        ? 'video/webm;codecs=vp8'
+        : 'video/webm';
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 700_000
+      });
+
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      const recordingDone = new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+      });
+
+      let rafId: number | null = null;
+      const renderFrame = () => {
+        context.drawImage(video, 0, 0, targetWidth, targetHeight);
+        if (!video.ended && !video.paused) {
+          rafId = requestAnimationFrame(renderFrame);
+        }
+      };
+
+      recorder.start(250);
+      await video.play();
+      renderFrame();
+
+      await new Promise<void>((resolve) => {
+        video.onended = () => resolve();
+      });
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+
+      recorder.stop();
+      await recordingDone;
+
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const fileName = file.name.replace(/\.[^/.]+$/, '') + '-480p.webm';
+      return new File([blob], fileName, { type: 'video/webm' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      Array.from(files).forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const url = reader.result as string;
-          const type = file.type.startsWith('video') ? 'VIDEO' : 'IMAGE';
-          setMediaItems(prev => [...prev, { type, url }]);
-        };
-        reader.readAsDataURL(file);
-      });
+      setIsCompressingMedia(true);
+      try {
+        const itemsToAdd: MediaItem[] = [];
+
+        for (const file of Array.from(files as FileList)) {
+          if (file.type.startsWith('video')) {
+            const compressedVideo = await compressVideoTo480p(file);
+            const url = await readFileAsDataUrl(compressedVideo);
+            itemsToAdd.push({ type: 'VIDEO', url });
+          } else {
+            const url = await readFileAsDataUrl(file);
+            itemsToAdd.push({ type: 'IMAGE', url });
+          }
+        }
+
+        setMediaItems(prev => [...prev, ...itemsToAdd]);
+      } catch (error) {
+        console.error(error);
+        alert('Video-Komprimierung fehlgeschlagen. Bitte versuche es mit einer kürzeren Datei erneut.');
+      } finally {
+        setIsCompressingMedia(false);
+        e.target.value = '';
+      }
     }
   };
 
@@ -419,13 +524,14 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
 
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-300 hover:border-indigo-400 hover:bg-slate-50 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all"
+                 className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center transition-all ${isCompressingMedia ? 'border-slate-200 bg-slate-50 cursor-not-allowed' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50 cursor-pointer'}`}
               >
                  <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mb-3">
                    <Upload className="w-6 h-6" />
                  </div>
-                 <span className="text-slate-600 font-medium">Fotos/Videos hinzufügen</span>
-                 <span className="text-xs text-slate-400 mt-1">Mehrfachauswahl möglich</span>
+                  <span className="text-slate-600 font-medium">Fotos/Videos hinzufügen</span>
+                  <span className="text-xs text-slate-400 mt-1">Videos werden schnell auf 480p komprimiert</span>
+                  {isCompressingMedia && <span className="text-xs text-indigo-500 mt-1">Komprimiere Videos...</span>}
                  <input 
                     ref={fileInputRef} 
                     type="file" 
@@ -433,6 +539,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                     multiple 
                     className="hidden" 
                     onChange={handleFileChange} 
+                    disabled={isCompressingMedia}
                  />
               </div>
 
@@ -446,10 +553,10 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
 
               <button 
                 onClick={handleSubmitProof}
-                disabled={mediaItems.length === 0 || loading}
+                disabled={mediaItems.length === 0 || loading || isCompressingMedia}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl font-medium transition-all"
               >
-                {loading ? 'Sende...' : 'Einreichen'}
+                {isCompressingMedia ? 'Komprimiere...' : loading ? 'Sende...' : 'Einreichen'}
               </button>
             </div>
           </div>
