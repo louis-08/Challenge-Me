@@ -64,7 +64,7 @@ router.post('/generate', aiLimiter, [
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash-lite",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -141,7 +141,7 @@ router.post('/verify', aiLimiter, [
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash-lite",
       contents: {
         parts: [
           { inlineData: { mimeType: "image/jpeg", data: base64Data } },

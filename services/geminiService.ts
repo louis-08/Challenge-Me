@@ -1,6 +1,6 @@
 import { Milestone } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://crispy-space-trout-wxgxrx7wrx7cgr6g-3001.app.github.dev/';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function getCsrfToken(): string {
   return document.cookie
@@ -16,7 +16,7 @@ export const generateCreativeMilestones = async (
   count: number = 3
 ): Promise<Milestone[]> => {
   try {
-    const res = await fetch(`${API_BASE}ai/generate`, {
+    const res = await fetch(`${API_BASE}/ai/generate`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -49,7 +49,7 @@ export const verifyMilestoneProof = async (
   base64Image: string
 ): Promise<{ verified: boolean; feedback: string }> => {
   try {
-    const res = await fetch(`${API_BASE}ai/verify`, {
+    const res = await fetch(`${API_BASE}/ai/verify`, {
       method: 'POST',
       credentials: 'include',
       headers: {
