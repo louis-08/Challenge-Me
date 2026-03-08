@@ -358,10 +358,10 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
               if (pick) spin(pick);
             }}
             disabled={filteredChallenges.length === 0}
-            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-full text-sm font-bold shadow-sm transition-all disabled:opacity-40"
+            className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-900 px-4 py-2 rounded-full text-sm font-bold shadow-lg shadow-amber-900/20 transition-all active:scale-95 disabled:opacity-40"
           >
             <Shuffle className="w-4 h-4" />
-            Zufällig starten
+            {'w\u00E4hle zuf\u00E4llige Challenge'}
           </button>
         </div>
 
