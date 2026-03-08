@@ -3,7 +3,26 @@ import { INITIAL_MILESTONES } from '../constants';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-function getCsrfToken(): string {
+let currentCsrfToken: string = '';
+
+export async function fetchCsrfToken() {
+  if (currentCsrfToken) return currentCsrfToken;
+  try {
+    const res = await fetch(`${API_BASE}/csrf`, { credentials: 'include' });
+    const data = await res.json();
+    if (data.csrfToken) {
+      currentCsrfToken = data.csrfToken;
+    }
+  } catch (e) {
+    console.error('Failed to fetch initial CSRF token', e);
+  }
+  return currentCsrfToken;
+}
+
+export function getCsrfToken(): string {
+  // Try to use the active variable, fallback to cookie for local dev
+  if (currentCsrfToken) return currentCsrfToken;
+
   return document.cookie
     .split('; ')
     .find(row => row.startsWith('csrf='))
@@ -14,15 +33,26 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   const isMutating = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(
     (options.method ?? 'GET').toUpperCase()
   );
+  
+  if (isMutating && !getCsrfToken()) {
+    await fetchCsrfToken(); // Block until token is fetched
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include', // send httpOnly cookie with every request
     headers: {
       'Content-Type': 'application/json',
-      ...(isMutating ? { 'X-CSRF-Token': getCsrfToken() } : {}),
+      ...(isMutating ? { 'x-csrf-token': getCsrfToken() } : {}),
       ...options.headers
     }
   });
+
+  // Intercept the token from the response header if provided
+  const headerToken = res.headers.get('x-csrf-token');
+  if (headerToken) {
+    currentCsrfToken = headerToken;
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
