@@ -46,7 +46,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
   const [spinning, setSpinning] = useState(false);
   const spinRef = useRef<number | null>(null);
 
-  useEffect(() => () => { if (spinRef.current) clearInterval(spinRef.current); }, []);
+  useEffect(() => () => { if (spinRef.current) clearTimeout(spinRef.current); }, []);
 
   const baseChallenges = feedChallenges.length > 0 ? feedChallenges : INITIAL_MILESTONES;
   const allChallenges = [...aiChallenges, ...baseChallenges];
@@ -87,6 +87,31 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
   // ─── Spin ──────────────────────────────────────────────────────────────────
 
+  const startSpinAnimation = () => {
+    const winner = players[Math.floor(Math.random() * players.length)];
+    let tick = 0;
+    const total = 30; // Amount of steps
+    let delay = 30;   // Start fast (every 30ms)
+
+    const runSpin = () => {
+      // Pick a random player for the spinning visual
+      setDisplayName(players[Math.floor(Math.random() * players.length)]);
+      tick++;
+      
+      if (tick >= total) {
+        setDisplayName(winner);
+        setChosenPlayer(winner);
+        setSpinning(false);
+      } else {
+        // Slow down increasingly
+        delay = Math.floor(delay * 1.12); // exponential slowdown
+        spinRef.current = window.setTimeout(runSpin, delay) as unknown as number;
+      }
+    };
+    
+    spinRef.current = window.setTimeout(runSpin, delay) as unknown as number;
+  };
+
   const spin = (challenge: Milestone) => {
     if (spinning || players.length < 1) return;
     setSelectedChallenge(challenge);
@@ -95,20 +120,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
     setDisplayName('');
     setScreen('result');
 
-    const winner = players[Math.floor(Math.random() * players.length)];
-
-    let tick = 0;
-    const total = 24;
-    spinRef.current = window.setInterval(() => {
-      setDisplayName(players[Math.floor(Math.random() * players.length)]);
-      tick++;
-      if (tick >= total) {
-        clearInterval(spinRef.current!);
-        setDisplayName(winner);
-        setChosenPlayer(winner);
-        setSpinning(false);
-      }
-    }, 90);
+    startSpinAnimation();
   };
 
   const spinAgain = () => {
@@ -117,19 +129,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
     setChosenPlayer('');
     setSpinning(true);
 
-    const winner = players[Math.floor(Math.random() * players.length)];
-    let tick = 0;
-    const total = 24;
-    spinRef.current = window.setInterval(() => {
-      setDisplayName(players[Math.floor(Math.random() * players.length)]);
-      tick++;
-      if (tick >= total) {
-        clearInterval(spinRef.current!);
-        setDisplayName(winner);
-        setChosenPlayer(winner);
-        setSpinning(false);
-      }
-    }, 90);
+    startSpinAnimation();
   };
 
   // ─── Player panel (shown on challenge + result screens) ────────────────────

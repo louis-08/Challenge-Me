@@ -12,7 +12,7 @@ import aiRouter from './routes/ai';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://crispy-space-trout-wxgxrx7wrx7cgr6g-3000.app.github.dev';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 // --- Trust proxy setting ---
