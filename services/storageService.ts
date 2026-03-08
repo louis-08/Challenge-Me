@@ -1,7 +1,7 @@
 import { User, Group, Milestone, MediaItem } from '../types';
 import { INITIAL_MILESTONES } from '../constants';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function getCsrfToken(): string {
   return document.cookie
@@ -105,6 +105,14 @@ export const joinGroup = async (_userId: string, code: string): Promise<Group> =
 
 export const getUserGroups = async (_userId: string): Promise<Group[]> => {
   return apiFetch<Group[]>('/groups/mine');
+};
+
+export const deleteGroup = async (groupId: string): Promise<void> => {
+  await apiFetch(`/groups/${groupId}`, { method: 'DELETE' });
+};
+
+export const getGroup = async (groupId: string): Promise<Group> => {
+  return apiFetch<Group>(`/groups/${groupId}`);
 };
 
 // --- Challenge Logic ---

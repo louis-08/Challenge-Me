@@ -1,13 +1,13 @@
 export enum MilestoneCategory {
-  TRAVEL = 'Reisen',
-  SKILLS = 'Skills',
-  CAREER = 'Karriere',
-  WELLNESS = 'Gesundheit',
-  ADVENTURE = 'Abenteuer',
-  RELATIONSHIPS = 'Social',
-  CREATIVITY = 'Kreativität',
-  FINANCE = 'Geld',
-  FUN = 'Fun & Cringe'
+  FUNandCringe = 'Fun & Cringe',
+  SPORT = 'Sport',
+  SOCIAL = 'Social',
+  OUTDOOR = 'Outdoor',
+  PARTY = 'Party',
+  SKILLSandCREATIVITY = 'Skills & Kreativität',
+  SCHOOL = 'Schule',
+  INDOOR = 'Indoor',
+  DRINKING = 'Trinkspiele'
 }
 
 export enum Difficulty {

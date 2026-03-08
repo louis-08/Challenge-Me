@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Dice5, Search, CheckCircle2 } from 'lucide-react';
+import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Dice5, Search, CheckCircle2, PartyPopper, ChevronDown, ChevronUp, User as UserIcon } from 'lucide-react';
 import { Milestone, MilestoneCategory, User, Difficulty, Group } from './types';
 import { MilestoneCard } from './components/MilestoneCard';
 import { AuthScreen } from './components/AuthScreen';
 import { GroupDashboard } from './components/GroupDashboard';
+import { LocalMode } from './components/LocalMode';
 import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends } from './services/storageService';
 import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from './constants';
 import { generateCreativeMilestones } from './services/geminiService';
@@ -251,13 +252,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   // App State
-  const [activeTab, setActiveTab] = useState<'feed' | 'groups'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'groups' | 'local'>('feed');
   const [isManualOpen, setIsManualOpen] = useState(false);
   
   // Feed Generator State
   const [genCategory, setGenCategory] = useState<string>('MIX');
   const [genDifficulty, setGenDifficulty] = useState<Difficulty | 'ALL'>('ALL');
   const [genContext, setGenContext] = useState('');
+  const [genTeamMode, setGenTeamMode] = useState<'SOLO' | 'TEAM'>('SOLO');
+  const [genAdvancedOpen, setGenAdvancedOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
   // Feed Data
@@ -269,8 +272,9 @@ function App() {
   // Manual Creation State
   const [manualTitle, setManualTitle] = useState('');
   const [manualDesc, setManualDesc] = useState('');
-  const [manualCat, setManualCat] = useState(MilestoneCategory.FUN);
+  const [manualCat, setManualCat] = useState(MilestoneCategory.FUNandCringe);
   const [manualDiff, setManualDiff] = useState(Difficulty.MEDIUM);
+  const [manualTeamMode, setManualTeamMode] = useState<'SOLO' | 'TEAM'>('SOLO');
 
   useEffect(() => {
     getCurrentSessionUser().then(user => {
@@ -294,7 +298,8 @@ function App() {
     setIsGenerating(true);
     try {
       // Request 10 items
-      const newFeed = await generateCreativeMilestones(genCategory, genDifficulty, genContext, 10);
+      const contextParts = [genContext, genTeamMode === 'TEAM' ? 'Im Team zu erledigen' : 'Solo zu erledigen'].filter(Boolean);
+      const newFeed = await generateCreativeMilestones(genCategory, genDifficulty, contextParts.join(', '), 10);
       if (newFeed.length > 0) {
         setFeedMilestones(newFeed);
       }
@@ -307,24 +312,25 @@ function App() {
 
   const handleManualCreate = () => {
     if (!currentUser || !manualTitle) return;
+    const modeTag = manualTeamMode === 'TEAM' ? ' [Team]' : ' [Solo]';
     const newM: Milestone = {
       id: Math.random().toString(36).substr(2, 9),
       title: manualTitle,
-      description: manualDesc || manualTitle,
+      description: (manualDesc || manualTitle) + modeTag,
       category: manualCat,
       difficulty: manualDiff,
-      proofType: 'PHOTO', // Default for manual
+      proofType: 'PHOTO',
       completed: false
     };
-    // Add to user collection AND feed for immediate access
     setCurrentUser({
       ...currentUser,
       milestones: [newM, ...currentUser.milestones]
     });
     setFeedMilestones(prev => [newM, ...prev]);
-    
+
     setManualTitle('');
     setManualDesc('');
+    setManualTeamMode('SOLO');
     setIsManualOpen(false);
   };
 
@@ -356,11 +362,17 @@ function App() {
               >
                 Feed
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('groups')}
                 className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 Community
+              </button>
+              <button
+                onClick={() => setActiveTab('local')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${activeTab === 'local' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Lokal
               </button>
             </div>
           </div>
@@ -385,22 +397,14 @@ function App() {
           <>
             {/* BIG FEED GENERATOR HEADER */}
             <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl p-8 mb-10 shadow-xl shadow-indigo-200 text-white">
-               {/* Decor circles */}
                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-purple-500/30 rounded-full blur-3xl"></div>
-               
+
                <div className="relative z-10">
                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h2 className="text-3xl font-black tracking-tight mb-2 flex items-center gap-3">
-                        <Dice5 className="w-8 h-8 text-amber-300" />
-                        Dein Challenge Generator
-                      </h2>
-                      <p className="text-indigo-100 font-medium max-w-lg leading-relaxed">
-                        Lust auf was Neues? Konfiguriere deinen Feed und lass dir von der KI 10 frische, maßgeschneiderte Challenges erstellen.
-                      </p>
-                    </div>
-                    
+                    <h2 className="text-3xl font-black tracking-tight">
+                      Challenge Generator
+                    </h2>
                     <button
                       onClick={() => setIsManualOpen(!isManualOpen)}
                       className="hidden md:flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all backdrop-blur-sm"
@@ -411,21 +415,23 @@ function App() {
                  </div>
 
                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                        <div>
                           <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Kategorie</label>
-                          <select 
+                          <select
                             value={genCategory}
                             onChange={(e) => setGenCategory(e.target.value)}
                             className="w-full bg-white text-slate-800 rounded-xl px-3 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
                           >
                              <option value="MIX">🎲 Bunter Mix</option>
-                             {Object.values(MilestoneCategory).map(c => <option key={c} value={c}>{CATEGORY_EMOJIS[c] || ''} {c}</option>)}
+                             {(Object.entries(MilestoneCategory) as [string, string][]).map(([key, label]) => (
+                               <option key={key} value={key}>{CATEGORY_EMOJIS[key] || ''} {label}</option>
+                             ))}
                           </select>
                        </div>
                        <div>
                           <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Level</label>
-                          <select 
+                          <select
                             value={genDifficulty}
                             onChange={(e) => setGenDifficulty(e.target.value as any)}
                             className="w-full bg-white text-slate-800 rounded-xl px-3 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
@@ -434,17 +440,7 @@ function App() {
                              {Object.values(Difficulty).map(d => <option key={d} value={d}>{d}</option>)}
                           </select>
                        </div>
-                       <div className="md:col-span-1">
-                          <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Kontext (Optional)</label>
-                          <input 
-                            type="text" 
-                            placeholder="z.B. 'Im Büro', 'Regenwetter'" 
-                            value={genContext}
-                            onChange={(e) => setGenContext(e.target.value)}
-                            className="w-full bg-white/90 text-slate-800 placeholder-slate-400 rounded-xl px-3 py-3 font-medium outline-none focus:ring-2 focus:ring-amber-400"
-                          />
-                       </div>
-                       <button 
+                       <button
                         onClick={handleGenerateFeed}
                         disabled={isGenerating}
                         className="w-full bg-amber-400 hover:bg-amber-300 text-amber-900 rounded-xl px-4 py-3 font-black text-center shadow-lg shadow-amber-900/20 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -453,47 +449,131 @@ function App() {
                           {isGenerating ? 'Generiere...' : '10 NEUE KARTEN'}
                        </button>
                     </div>
+
+                    {/* Erweiterte Einstellungen */}
+                    <button
+                      onClick={() => setGenAdvancedOpen(o => !o)}
+                      className="mt-3 flex items-center gap-1.5 text-xs font-bold text-indigo-200 hover:text-white transition-colors"
+                    >
+                      {genAdvancedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      Erweiterte Einstellungen
+                    </button>
+
+                    {genAdvancedOpen && (
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Kontext (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="z.B. 'Im Büro', 'Regenwetter'"
+                            value={genContext}
+                            onChange={(e) => setGenContext(e.target.value)}
+                            className="w-full bg-white/90 text-slate-800 placeholder-slate-400 rounded-xl px-3 py-3 font-medium outline-none focus:ring-2 focus:ring-amber-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Modus</label>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setGenTeamMode('SOLO')}
+                              className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-bold text-sm transition-all ${genTeamMode === 'SOLO' ? 'bg-white text-slate-800' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                            >
+                              <UserIcon className="w-4 h-4" /> Solo
+                            </button>
+                            <button
+                              onClick={() => setGenTeamMode('TEAM')}
+                              className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-bold text-sm transition-all ${genTeamMode === 'TEAM' ? 'bg-white text-slate-800' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                            >
+                              <Users className="w-4 h-4" /> Team
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                  </div>
                </div>
+            </div>
+
+            {/* Small toggle button below generator */}
+            <div className="flex justify-center -mt-6 mb-6">
+              <button
+                onClick={() => setIsManualOpen(o => !o)}
+                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-full text-sm font-bold shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Eigene Challenge erstellen
+              </button>
             </div>
 
             {/* Manual Creator Panel (Toggable) */}
             {isManualOpen && (
               <div className="mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm animate-in slide-in-from-top-4 fade-in duration-300">
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-5">
                   <h3 className="font-bold text-lg">Eigene Challenge erstellen</h3>
                   <button onClick={() => setIsManualOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input 
-                    placeholder="Titel der Challenge" 
-                    className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={manualTitle} onChange={e => setManualTitle(e.target.value)}
-                  />
-                  <select 
-                    className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={manualCat} onChange={e => setManualCat(e.target.value as any)}
-                  >
-                    {Object.values(MilestoneCategory).map(c => <option key={c} value={c}>{CATEGORY_EMOJIS[c] || ''} {c}</option>)}
-                  </select>
-                  <select 
-                    className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                    value={manualDiff} onChange={e => setManualDiff(e.target.value as any)}
-                  >
-                     {Object.values(Difficulty).map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <button 
-                    onClick={handleManualCreate}
-                    className="bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800"
-                  >
-                    Erstellen
-                  </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold uppercase text-slate-400 mb-1.5 block">Titel</label>
+                    <input
+                      placeholder="Name der Challenge"
+                      className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={manualTitle} onChange={e => setManualTitle(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-400 mb-1.5 block">Kategorie</label>
+                    <select
+                      className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      value={manualCat} onChange={e => setManualCat(e.target.value as any)}
+                    >
+                      {(Object.entries(MilestoneCategory) as [string, string][]).map(([key, label]) => (
+                        <option key={key} value={key}>{CATEGORY_EMOJIS[key] || ''} {label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-400 mb-1.5 block">Level</label>
+                    <select
+                      className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      value={manualDiff} onChange={e => setManualDiff(e.target.value as any)}
+                    >
+                      {Object.values(Difficulty).map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold uppercase text-slate-400 mb-1.5 block">Modus</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setManualTeamMode('SOLO')}
+                        className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl font-bold text-sm border transition-all ${manualTeamMode === 'SOLO' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <UserIcon className="w-4 h-4" /> Solo
+                      </button>
+                      <button
+                        onClick={() => setManualTeamMode('TEAM')}
+                        className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl font-bold text-sm border transition-all ${manualTeamMode === 'TEAM' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <Users className="w-4 h-4" /> Team
+                      </button>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold uppercase text-slate-400 mb-1.5 block">Beschreibung</label>
+                    <textarea
+                      placeholder="Was muss gemacht werden?"
+                      className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 h-20 resize-none"
+                      value={manualDesc} onChange={e => setManualDesc(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <textarea 
-                  placeholder="Beschreibung..." 
-                  className="w-full mt-4 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 h-20"
-                  value={manualDesc} onChange={e => setManualDesc(e.target.value)}
-                />
+                <button
+                  onClick={handleManualCreate}
+                  disabled={!manualTitle.trim()}
+                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold rounded-xl transition-all"
+                >
+                  Challenge hinzufügen
+                </button>
               </div>
             )}
 
@@ -521,14 +601,18 @@ function App() {
         )}
 
         {activeTab === 'groups' && (
-          <GroupDashboard 
-            currentUser={currentUser} 
+          <GroupDashboard
+            currentUser={currentUser}
             onUpdate={() => {
                getCurrentSessionUser().then(updated => {
                  if (updated) setCurrentUser(updated);
                });
-            }} 
+            }}
           />
+        )}
+
+        {activeTab === 'local' && (
+          <LocalMode feedChallenges={feedMilestones} />
         )}
 
       </main>

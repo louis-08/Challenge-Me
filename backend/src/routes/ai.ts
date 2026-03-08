@@ -38,33 +38,51 @@ router.post('/generate', aiLimiter, [
 
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-    const allowedCategories = ["TRAVEL", "SKILLS", "CAREER", "WELLNESS", "ADVENTURE", "RELATIONSHIPS", "CREATIVITY", "FINANCE", "FUN"];
+    const allowedCategories = ["FUNandCringe", "SPORT", "SOCIAL", "OUTDOOR", "PARTY", "SKILLSandCREATIVITY", "SCHOOL", "INDOOR", "DRINKING"];
+
+    const categoryDescriptions: Record<string, string> = {
+      FUNandCringe: "Allgemeiner Spaß & Chaos (z.B. alles was keiner Kategorie passt, aber für Lacher sorgt)",
+      SPORT: "Körperliche Challenges (z.B. Wettbewerbe, verrückte Moves, Ausdauer-Duelle)",
+      SOCIAL: "Soziale Mutproben (z.B. Fremde ansprechen, peinliche Dinge in der Öffentlichkeit tun)",
+      OUTDOOR: "Draußen-Spaß (z.B. Schnitzeljagd, Wasser, Schlamm, Park-Unsinn)",
+      PARTY: "Party & Spiele (z.B. Trinkspiele-Varianten, Gesellschaftsspiel-Challenges, Karaoke-Mutas)",
+      SKILLSandCREATIVITY: "Messe dich in verschiedenen Fähigkeiten, in welchen kaum jmd große Vorerfahrung hat, oder werde eif kreattiv (z.B. jonglieren, absurde Kunstwerke, Parodien, Kartenhaus bauen, ...)",
+      SCHOOL: "Challenges im Klassenzimmer oder Studium (z.B. Lehrer imitieren, peinliche Fragen stellen, verrückte Präsentationen)",
+      INDOOR: "Alles was man machen kann, ohne das Haus zu verlassen (orientere dich an anderen Kategorien, aber zwingend indoor umsetzbar)",
+      DRINKING: "Die Challenge muss ein drinkspiel sein kann. Gebe immer an, nach welcher Handlung jmd einen Trinken muss"
+    };
 
     let promptContext = "";
     if (category === 'MIX') {
-      promptContext = `Erstelle ${count} komplett unterschiedliche, trendige Challenges aus den erlaubten Kategorien: [${allowedCategories.join(", ")}].`;
+      promptContext = `Erstelle ${count} komplett unterschiedliche, lustige Challenges die Freunde gegeneinander antreten lassen. Nutze verschiedene Kategorien aus: [${allowedCategories.join(", ")}].`;
     } else {
-      promptContext = `Erstelle ${count} verrückte Challenges exakt für die Kategorie "${category}".`;
+      const desc = categoryDescriptions[category] ?? category;
+      promptContext = `Erstelle ${count} lustige Challenges für Freunde exakt zur Kategorie "${category}" (${desc}).`;
     }
 
     if (difficulty !== 'ALL') {
-      promptContext += ` Der Schwierigkeitsgrad muss zwingend "${difficulty}" sein.`;
+      promptContext += ` Schwierigkeitsgrad muss zwingend "${difficulty}" sein.`;
     }
 
     if (additionalInfo) {
-      promptContext += ` Zusatz-Info vom User (bitte berücksichtigen): "${additionalInfo}".`;
+      promptContext += ` Zusatz-Info vom User: "${additionalInfo}".`;
     }
 
     const prompt = `
+      Du bist ein frecher Challenge-Generator für Freundesgruppen. Dein Ziel: maximaler Spaß, Lachen und Chaos.
       ${promptContext}
-      WICHTIG: Verwende NUR die oben genannten Kategorien. Erfinde KEINE neuen Kategorienamen.
-      Die Aufgaben müssen konkret und beweisbar sein.
-      Gib für jede Challenge an, ob der beste Beweis ein FOTO oder ein VIDEO ist.
-      Sprache: Deutsch.
+
+      REGELN:
+      - Challenges müssen witzig, verrückt und mit Freunden sofort machbar sein
+      - KEIN Sport im Sinne von Training, KEINE Karriere-Ziele, KEINE Finanztipps, KEINE Bildungsaufgaben
+      - Challenges sollen peinlich, mutig, spaßig oder eklig (aber harmlos) sein
+      - Jede Challenge muss konkret und innerhalb weniger Minuten beweisbar sein
+      - Verwende NUR die erlaubten Kategorien: [${allowedCategories.join(", ")}]
+      - Sprache: Deutsch, locker und jugendlich
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-lite",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -88,7 +106,7 @@ router.post('/generate', aiLimiter, [
     const generatedRaw = response.text ? JSON.parse(response.text) : [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const milestones = generatedRaw.map((item: any) => ({
+    const challenges = generatedRaw.map((item: any) => ({
       id: generateId(),
       title: item.title,
       description: item.description,
@@ -99,7 +117,7 @@ router.post('/generate', aiLimiter, [
       isAiGenerated: true
     }));
 
-    res.json(milestones);
+    res.json(challenges);
 
   } catch (error) {
     console.error("Error generating milestones:", error);
