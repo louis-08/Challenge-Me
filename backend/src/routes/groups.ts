@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { Group, GroupChallenge, ChallengeSubmission, MediaItem } from '../types';
+import { addClient, removeClient, notifyGroup } from '../sseClients';
 
 const router = Router();
 
@@ -38,6 +39,39 @@ function toGroup(row: GroupRow): Group {
 function generateGroupCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
+
+// GET /groups/stream — SSE real-time updates
+router.get('/stream',
+  authenticate,
+  (req: AuthRequest, res: Response): void => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // prevent nginx/proxy buffering
+    res.flushHeaders();
+
+    // Disable Nagle's algorithm so each write is sent immediately
+    res.socket?.setNoDelay(true);
+
+    const userRow = db.prepare('SELECT group_ids FROM users WHERE id = ?').get(req.userId) as UserRow | undefined;
+    const groupIds: string[] = userRow ? JSON.parse(userRow.group_ids) : [];
+
+    addClient(req.userId!, groupIds, res);
+
+    // Confirm connection
+    res.write('data: {"connected":true}\n\n');
+
+    // Keep-alive heartbeat every 25s
+    const heartbeat = setInterval(() => {
+      try { res.write(': ping\n\n'); } catch { clearInterval(heartbeat); }
+    }, 25_000);
+
+    res.on('close', () => {
+      clearInterval(heartbeat);
+      removeClient(res);
+    });
+  }
+);
 
 // POST /groups — create a group
 router.post('/',
@@ -112,6 +146,7 @@ router.post('/join',
     joinGroup();
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id }); // notify existing members
     res.json(toGroup(updated));
   }
 );
@@ -146,6 +181,39 @@ router.get('/:id',
       return;
     }
     res.json(toGroup(row));
+  }
+);
+
+// DELETE /groups/:id — leave or delete group
+router.delete('/:id',
+  authenticate,
+  param('id').isUUID(),
+  (req: AuthRequest, res: Response): void => {
+    const row = db.prepare('SELECT * FROM groups WHERE id = ?').get(req.params.id) as GroupRow | undefined;
+    if (!row) { res.status(404).json({ error: 'Gruppe nicht gefunden.' }); return; }
+
+    const memberIds: string[] = JSON.parse(row.member_ids);
+    if (!memberIds.includes(req.userId!)) {
+      res.status(403).json({ error: 'Kein Zugriff.' });
+      return;
+    }
+
+    // Notify BEFORE deleting so subscribers still exist
+    notifyGroup(row.id, { deleted: true, id: row.id });
+
+    db.transaction(() => {
+      // Remove group_id from all members
+      for (const userId of memberIds) {
+        const user = db.prepare('SELECT group_ids FROM users WHERE id = ?').get(userId) as UserRow | undefined;
+        if (user) {
+          const groupIds: string[] = JSON.parse(user.group_ids).filter((gid: string) => gid !== row.id);
+          db.prepare('UPDATE users SET group_ids = ? WHERE id = ?').run(JSON.stringify(groupIds), userId);
+        }
+      }
+      db.prepare('DELETE FROM groups WHERE id = ?').run(row.id);
+    })();
+
+    res.json({ ok: true });
   }
 );
 
@@ -187,6 +255,7 @@ router.post('/:id/challenge',
       .run(JSON.stringify(challenge), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
     res.json(toGroup(updated));
   }
 );
@@ -241,6 +310,7 @@ router.post('/:id/challenge/submit',
       .run(JSON.stringify(challenge), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
     res.json(toGroup(updated));
   }
 );
@@ -268,6 +338,7 @@ router.post('/:id/challenge/vote',
       .run(JSON.stringify(challenge), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
     res.json(toGroup(updated));
   }
 );
@@ -312,6 +383,7 @@ router.post('/:id/challenge/rate',
       .run(JSON.stringify(challenge), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
     res.json(toGroup(updated));
   }
 );
@@ -356,6 +428,7 @@ router.post('/:id/challenge/finish',
       .run(JSON.stringify(pastChallenges), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
     res.json(toGroup(updated));
   }
 );

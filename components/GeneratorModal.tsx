@@ -11,7 +11,7 @@ interface GeneratorModalProps {
 }
 
 export const GeneratorModal: React.FC<GeneratorModalProps> = ({ isOpen, onClose, onAdd }) => {
-  const [selectedCategory, setSelectedCategory] = useState<string>(MilestoneCategory.ADVENTURE);
+  const [selectedCategory, setSelectedCategory] = useState<string>(MilestoneCategory.FUNandCringe);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'ALL'>('ALL');
   const [additionalInfo, setAdditionalInfo] = useState('');
   
@@ -66,8 +66,8 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({ isOpen, onClose,
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
-                  {Object.values(MilestoneCategory).map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {(Object.entries(MilestoneCategory) as [string, string][]).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
                   ))}
                 </select>
               </div>
