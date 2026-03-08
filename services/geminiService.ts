@@ -2,12 +2,7 @@ import { Milestone } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-function getCsrfToken(): string {
-  return document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrf='))
-    ?.split('=')[1] ?? '';
-}
+import { getCsrfToken, fetchCsrfToken } from './storageService';
 
 export const generateCreativeMilestones = async (
   category: string | 'MIX', 
@@ -16,6 +11,7 @@ export const generateCreativeMilestones = async (
   count: number = 3
 ): Promise<Milestone[]> => {
   try {
+    if (!getCsrfToken()) await fetchCsrfToken();
     const res = await fetch(`${API_BASE}/ai/generate`, {
       method: 'POST',
       credentials: 'include',
@@ -49,6 +45,7 @@ export const verifyMilestoneProof = async (
   base64Image: string
 ): Promise<{ verified: boolean; feedback: string }> => {
   try {
+    if (!getCsrfToken()) await fetchCsrfToken();
     const res = await fetch(`${API_BASE}/ai/verify`, {
       method: 'POST',
       credentials: 'include',

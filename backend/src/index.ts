@@ -22,7 +22,8 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({
   origin: FRONTEND_URL,
-  credentials: true // required for httpOnly cookie auth
+  credentials: true, // required for httpOnly cookie auth
+  exposedHeaders: ['X-CSRF-Token']
 }));
 
 // --- Global rate limiting (protects all routes) ---
@@ -62,6 +63,9 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
+  // Provide it in a response header as well
+  res.setHeader(CSRF_HEADER, csrfToken);
+
   // Validate on state-changing requests (production only)
   if (!CSRF_SAFE_METHODS.has(req.method)) {
     const headerToken = req.get(CSRF_HEADER);
@@ -72,6 +76,10 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
   }
 
   next();
+});
+
+app.get('/csrf', (req, res) => {
+  res.json({ csrfToken: res.get(CSRF_HEADER) || req.cookies[CSRF_COOKIE] });
 });
 
 // --- Routes ---
