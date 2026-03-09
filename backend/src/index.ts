@@ -18,7 +18,10 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET: string = process.env.JWT_SECRET;
+
+// --- CSRF header name (defined early so it can be reused in CORS config) ---
+const CSRF_HEADER = 'x-csrf-token';
 
 // --- Trust proxy setting ---
 app.set('trust proxy', 1);
@@ -28,7 +31,7 @@ app.use(helmet());
 app.use(cors({
   origin: FRONTEND_URL,
   credentials: true, // required for httpOnly cookie auth
-  exposedHeaders: ['X-CSRF-Token']
+  exposedHeaders: [CSRF_HEADER]
 }));
 
 // --- Global rate limiting (protects all routes) ---
@@ -46,7 +49,6 @@ app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 // --- CSRF protection (Signed Token pattern, no third-party cookies required) ---
-const CSRF_HEADER = 'x-csrf-token';
 const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 function generateCsrfToken(): string {
