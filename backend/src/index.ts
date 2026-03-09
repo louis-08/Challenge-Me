@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -10,10 +11,14 @@ import usersRouter from './routes/users';
 import groupsRouter from './routes/groups';
 import aiRouter from './routes/ai';
 
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required but not set.');
+}
+
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const IS_PROD = process.env.NODE_ENV === 'production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // --- Trust proxy setting ---
 app.set('trust proxy', 1);
@@ -40,36 +45,33 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
-// --- CSRF protection (Double Submit Cookie pattern) ---
-const CSRF_COOKIE = 'csrf';
+// --- CSRF protection (Signed Token pattern, no third-party cookies required) ---
 const CSRF_HEADER = 'x-csrf-token';
 const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+function generateCsrfToken(): string {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  return jwt.sign({ type: 'csrf', nonce }, JWT_SECRET, { expiresIn: '1d' });
+}
+
+function verifyCsrfToken(token: string): boolean {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { type?: string };
+    return payload.type === 'csrf';
+  } catch {
+    return false;
+  }
+}
+
 app.use((req: Request, res: Response, next: NextFunction): void => {
-  // Issue a CSRF token for the browser to read via JavaScript
-  let csrfToken = req.cookies[CSRF_COOKIE] as string | undefined;
-  if (!csrfToken) {
-    csrfToken = crypto.randomBytes(32).toString('hex');
-    res.cookie(CSRF_COOKIE, csrfToken, {
-      httpOnly: false, // intentionally readable by JS
-      secure: IS_PROD,
-      sameSite: 'none'
-    });
-  }
-
-  // In development, skip CSRF validation (cross-origin cookie issues)
-  if (!IS_PROD) {
-    next();
-    return;
-  }
-
-  // Provide it in a response header as well
+  // Issue a fresh signed CSRF token in every response header for the frontend to pick up
+  const csrfToken = generateCsrfToken();
   res.setHeader(CSRF_HEADER, csrfToken);
 
-  // Validate on state-changing requests (production only)
+  // Validate on state-changing requests
   if (!CSRF_SAFE_METHODS.has(req.method)) {
     const headerToken = req.get(CSRF_HEADER);
-    if (!headerToken || headerToken !== csrfToken) {
+    if (!headerToken || !verifyCsrfToken(headerToken)) {
       res.status(403).json({ error: 'Ungültiges CSRF-Token.' });
       return;
     }
@@ -78,8 +80,8 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
   next();
 });
 
-app.get('/csrf', (req, res) => {
-  res.json({ csrfToken: res.get(CSRF_HEADER) || req.cookies[CSRF_COOKIE] });
+app.get('/csrf', (_req, res) => {
+  res.json({ csrfToken: res.get(CSRF_HEADER) });
 });
 
 // --- Routes ---

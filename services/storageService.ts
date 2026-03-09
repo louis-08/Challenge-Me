@@ -20,13 +20,7 @@ export async function fetchCsrfToken() {
 }
 
 export function getCsrfToken(): string {
-  // Try to use the active variable, fallback to cookie for local dev
-  if (currentCsrfToken) return currentCsrfToken;
-
-  return document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrf='))
-    ?.split('=')[1] ?? '';
+  return currentCsrfToken;
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
