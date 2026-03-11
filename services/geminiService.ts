@@ -1,13 +1,7 @@
 import { Milestone } from '../types';
+import { getCsrfTokenValue } from './storageService';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-function getCsrfToken(): string {
-  return document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrf='))
-    ?.split('=')[1] ?? '';
-}
 
 export const generateCreativeMilestones = async (
   category: string | 'MIX', 
@@ -21,7 +15,7 @@ export const generateCreativeMilestones = async (
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-Token': getCsrfToken()
+        'X-CSRF-Token': getCsrfTokenValue()
       },
       body: JSON.stringify({
         category,
@@ -54,7 +48,7 @@ export const verifyMilestoneProof = async (
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-Token': getCsrfToken()
+        'X-CSRF-Token': getCsrfTokenValue()
       },
       body: JSON.stringify({
         title,

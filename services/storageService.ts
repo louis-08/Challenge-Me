@@ -3,11 +3,20 @@ import { INITIAL_MILESTONES } from '../constants';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+let _csrfToken = '';
+
+export async function initCsrf(): Promise<void> {
+  const res = await fetch(`${API_BASE}/csrf-token`, { credentials: 'include' });
+  const data = await res.json();
+  _csrfToken = data.csrfToken ?? '';
+}
+
 function getCsrfToken(): string {
-  return document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrf='))
-    ?.split('=')[1] ?? '';
+  return _csrfToken;
+}
+
+export function getCsrfTokenValue(): string {
+  return _csrfToken;
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
