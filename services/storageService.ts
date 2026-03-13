@@ -20,11 +20,7 @@ export async function fetchCsrfToken() {
 }
 
 export function getCsrfToken(): string {
-  if (currentCsrfToken) return currentCsrfToken;
-  return document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrf='))
-    ?.split('=')[1] ?? '';
+  return currentCsrfToken;
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
