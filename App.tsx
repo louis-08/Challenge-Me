@@ -277,7 +277,7 @@ function App() {
   const [manualTeamMode, setManualTeamMode] = useState<'SOLO' | 'TEAM'>('SOLO');
 
   useEffect(() => {
-    initCsrf().then(() => getCurrentSessionUser()).then(user => {
+    getCurrentSessionUser().then(user => {
       if (user) setCurrentUser(user);
       setIsLoading(false);
     });
