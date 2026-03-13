@@ -5,7 +5,7 @@ import { MilestoneCard } from './components/MilestoneCard';
 import { AuthScreen } from './components/AuthScreen';
 import { GroupDashboard } from './components/GroupDashboard';
 import { LocalMode } from './components/LocalMode';
-import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends, initCsrf } from './services/storageService';
+import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends } from './services/storageService';
 import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from './constants';
 import { generateCreativeMilestones } from './services/geminiService';
 
