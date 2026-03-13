@@ -5,7 +5,7 @@
   "description": "Express.js backend for Challenge Me webapp",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node src/index.ts",
+    "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
