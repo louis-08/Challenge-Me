@@ -12,7 +12,7 @@ import aiRouter from './routes/ai';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://crispy-space-trout-wxgxrx7wrx7cgr6g-3000.app.github.dev';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 // --- Trust proxy setting ---
@@ -22,7 +22,8 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({
   origin: FRONTEND_URL,
-  credentials: true // required for httpOnly cookie auth
+  credentials: true, // required for httpOnly cookie auth
+  exposedHeaders: ['X-CSRF-Token']
 }));
 
 // --- Global rate limiting (protects all routes) ---
@@ -64,6 +65,9 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
+  // Provide it in a response header as well
+  res.setHeader(CSRF_HEADER, csrfToken);
+
   // Validate on state-changing requests (production only)
   if (!CSRF_SAFE_METHODS.has(req.method)) {
     const headerToken = req.get(CSRF_HEADER);
@@ -77,7 +81,7 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
 });
 
 // Expose CSRF token to SPA (cross-origin document.cookie is not readable by JS on a different domain)
-app.get('/csrf-token', (_req: Request, res: Response) => {
+app.get('/csrf', (_req: Request, res: Response) => {
   res.json({ csrfToken: res.locals[CSRF_COOKIE] });
 });
 
