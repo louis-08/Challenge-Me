@@ -38,14 +38,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="p-8 pb-0 text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200">
-              <Zap className="w-6 h-6 text-white fill-white" />
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 -rotate-12 transform">
+              <Zap className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-wide uppercase">ChallengeMe</h1>
+            <h1 className="text-3xl font-extrabold italic text-slate-800 tracking-tight uppercase">
+              CHALLENGE<span className="text-indigo-600">ME</span>
+            </h1>
           </div>
           <p className="text-slate-500 mt-2">
-            Tracke deine Abenteuer, meistere Challenges und inspiriere deine Freunde.
+            Challenge deine Freunde und lacht euch kaputt!
           </p>
         </div>
 
@@ -110,12 +112,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           </div>
         </div>
         
-        <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
-          <p className="text-xs text-slate-400 flex items-center justify-center gap-1">
-            <Sparkles className="w-3 h-3" />
-            Powered by Gemini AI
-          </p>
-        </div>
       </div>
     </div>
   );
