@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Map, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { Zap, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storageService';
 import { User } from '../types';
 
@@ -38,10 +38,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="p-8 pb-0 text-center">
-          <div className="mx-auto w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-200 transform -rotate-6">
-            <Map className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200">
+              <Zap className="w-6 h-6 text-white fill-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-wide uppercase">ChallengeMe</h1>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Challenge Me</h1>
           <p className="text-slate-500 mt-2">
             Tracke deine Abenteuer, meistere Challenges und inspiriere deine Freunde.
           </p>
