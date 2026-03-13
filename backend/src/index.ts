@@ -40,38 +40,37 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
-// --- CSRF protection (Double Submit Cookie pattern) ---
-const CSRF_COOKIE = 'csrf';
+// --- CSRF protection (Signed Token pattern — cookie-free, works on mobile Safari) ---
 const CSRF_HEADER = 'x-csrf-token';
 const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const CSRF_SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET || 'dev-csrf-secret';
+
+function generateCsrfToken(): string {
+  const random = crypto.randomBytes(32).toString('hex');
+  const sig = crypto.createHmac('sha256', CSRF_SECRET).update(random).digest('hex');
+  return `${random}.${sig}`;
+}
+
+function verifyCsrfToken(token: string): boolean {
+  const dotIndex = token.lastIndexOf('.');
+  if (dotIndex === -1) return false;
+  const random = token.slice(0, dotIndex);
+  const sig = token.slice(dotIndex + 1);
+  const expected = crypto.createHmac('sha256', CSRF_SECRET).update(random).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+}
 
 app.use((req: Request, res: Response, next: NextFunction): void => {
-  // Issue a CSRF token stored server-side in res.locals (not reliant on cross-origin cookie reading)
-  let csrfToken = req.cookies[CSRF_COOKIE] as string | undefined;
-  if (!csrfToken) {
-    csrfToken = crypto.randomBytes(32).toString('hex');
-    res.cookie(CSRF_COOKIE, csrfToken, {
-      httpOnly: false,
-      secure: IS_PROD,
-      sameSite: IS_PROD ? 'none' : 'lax'
-    });
-  }
-  // Store in res.locals so /csrf-token endpoint can expose it
-  res.locals[CSRF_COOKIE] = csrfToken;
-
   // In development, skip CSRF validation
   if (!IS_PROD) {
     next();
     return;
   }
 
-  // Provide it in a response header as well
-  res.setHeader(CSRF_HEADER, csrfToken);
-
   // Validate on state-changing requests (production only)
   if (!CSRF_SAFE_METHODS.has(req.method)) {
     const headerToken = req.get(CSRF_HEADER);
-    if (!headerToken || headerToken !== csrfToken) {
+    if (!headerToken || !verifyCsrfToken(headerToken)) {
       res.status(403).json({ error: 'Ungültiges CSRF-Token.' });
       return;
     }
@@ -80,9 +79,9 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
   next();
 });
 
-// Expose CSRF token to SPA (cross-origin document.cookie is not readable by JS on a different domain)
+// Expose CSRF token to SPA — signed token, no cookie needed
 app.get('/csrf', (_req: Request, res: Response) => {
-  res.json({ csrfToken: res.locals[CSRF_COOKIE] });
+  res.json({ csrfToken: generateCsrfToken() });
 });
 
 // --- Routes ---
