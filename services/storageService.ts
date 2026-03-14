@@ -171,5 +171,12 @@ export const finishChallenge = async (groupId: string): Promise<Group> => {
   return apiFetch<Group>(`/groups/${groupId}/challenge/finish`, { method: 'POST' });
 };
 
+export const addSubmissionComment = async (groupId: string, targetUserId: string, text: string): Promise<Group> => {
+  return apiFetch<Group>(`/groups/${groupId}/challenge/comment`, {
+    method: 'POST',
+    body: JSON.stringify({ targetUserId, text })
+  });
+};
+
 // Keep for backward compatibility – not used anymore but exported to avoid import errors
 export { INITIAL_MILESTONES };

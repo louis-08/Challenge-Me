@@ -20,12 +20,19 @@ export interface MediaItem {
   url: string;
 }
 
+export interface VotingComment {
+  userId: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface ChallengeSubmission {
   userId: string;
   media: MediaItem[];
   comment: string;
   timestamp: string;
   ratings: { voterId: string; score: number }[];
+  comments?: VotingComment[];
 }
 
 export interface GroupChallenge {

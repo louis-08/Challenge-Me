@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Hourglass, Search, UserPlus, ChevronLeft, ChevronRight, Trash2, Download } from 'lucide-react';
+import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Hourglass, Search, UserPlus, ChevronLeft, ChevronRight, Trash2, Download, MessageCircle, Send } from 'lucide-react';
 import { Group, User, GroupChallenge, MediaItem } from '../types';
+import { MediaLightbox, LightboxItem } from './MediaLightbox';
 import {
   createGroup,
   joinGroup,
@@ -11,6 +12,7 @@ import {
   transitionToVoting,
   rateSubmission,
   finishChallenge,
+  addSubmissionComment,
   getUserById,
   getUserFriends,
   addFriend,
@@ -44,6 +46,25 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   const [proofComment, setProofComment] = useState('');
   const [isCompressingMedia, setIsCompressingMedia] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voting Comment State
+  const [commentTexts, setCommentTexts] = useState<Record<string, string>>({});
+  const [commentLoading, setCommentLoading] = useState<string | null>(null);
+
+  // Lightbox State
+  const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const openLightbox = (items: LightboxItem[], startIndex: number) => {
+    setLightboxItems(items);
+    setLightboxIndex(startIndex);
+    setLightboxOpen(true);
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+  };
 
   // Timer
   const [timeLeftStr, setTimeLeftStr] = useState<string>('');
@@ -466,12 +487,43 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                       )}
                     </div>
                     {hasMedia && (
-                      <button
-                        onClick={() => handleDownloadAllMedia(past)}
-                        className="flex items-center justify-center gap-2 w-full py-2 mt-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-medium transition-colors border border-slate-200"
-                      >
-                        <Download className="w-4 h-4" /> Media herunterladen
-                      </button>
+                      <>
+                        {/* Media preview grid */}
+                        <div className="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+                          {past.submissions.flatMap((s, si) =>
+                            (s.media || []).map((item, mi) => {
+                              const allPastItems: LightboxItem[] = past.submissions.flatMap(sub =>
+                                (sub.media || []).map(m => ({
+                                  media: m,
+                                  uploaderName: usersCache[sub.userId]?.username || 'Unbekannt',
+                                }))
+                              );
+                              const flatIdx = past.submissions.slice(0, si).reduce((acc, sub) => acc + (sub.media?.length || 0), 0) + mi;
+                              return (
+                                <div
+                                  key={`${si}-${mi}`}
+                                  className="aspect-square cursor-pointer relative group"
+                                  onClick={() => openLightbox(allPastItems, flatIdx)}
+                                >
+                                  {item.type === 'VIDEO'
+                                    ? <video src={item.url} className="w-full h-full object-cover" />
+                                    : <img src={item.url} className="w-full h-full object-cover" />
+                                  }
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                                    <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold" style={{textShadow: '0 1px 4px rgba(0,0,0,0.5)'}}>Vergrößern</span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleDownloadAllMedia(past)}
+                          className="flex items-center justify-center gap-2 w-full py-2 mt-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-medium transition-colors border border-slate-200"
+                        >
+                          <Download className="w-4 h-4" /> Media herunterladen
+                        </button>
+                      </>
                     )}
                   </div>
                 );
@@ -558,18 +610,29 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
             <div className="space-y-3">
               {mediaItems.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
-                  {mediaItems.map((item, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden group">
-                      {item.type === 'VIDEO'
-                        ? <video src={item.url} className="w-full h-full object-cover" />
-                        : <img src={item.url} className="w-full h-full object-cover" />
-                      }
-                      <button onClick={() => setMediaItems(prev => prev.filter((_, j) => j !== i))}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+                  {mediaItems.map((item, i) => {
+                    const previewItems: LightboxItem[] = mediaItems.map(m => ({
+                      media: m,
+                      uploaderName: currentUser.username,
+                    }));
+                    return (
+                      <div key={i} className="relative aspect-square rounded-xl overflow-hidden group">
+                        <div
+                          className="w-full h-full cursor-pointer"
+                          onClick={() => openLightbox(previewItems, i)}
+                        >
+                          {item.type === 'VIDEO'
+                            ? <video src={item.url} className="w-full h-full object-cover" />
+                            : <img src={item.url} className="w-full h-full object-cover" />
+                          }
+                        </div>
+                        <button onClick={() => setMediaItems(prev => prev.filter((_, j) => j !== i))}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div
@@ -628,7 +691,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           </button>
           {group.memberIds[0] === currentUser.id && (
             <button onClick={handleEndChallenge} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-xl hover:bg-indigo-700 font-bold">
-              Beenden
+              Voting abschließen
             </button>
           )}
         </div>
@@ -638,18 +701,46 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
         const isMe = sub.userId === currentUser.id;
         const myVote = sub.ratings.find(r => r.voterId === currentUser.id)?.score || 0;
         const avgScore = sub.ratings.reduce((a, c) => a + c.score, 0) / (sub.ratings.length || 1);
+        const subComments = sub.comments || [];
+        const commentKey = sub.userId;
+        const commentText = commentTexts[commentKey] || '';
+
+        const handleAddComment = async () => {
+          if (!selectedGroupId || !commentText.trim()) return;
+          setCommentLoading(commentKey);
+          try {
+            const updated = await addSubmissionComment(selectedGroupId, sub.userId, commentText.trim());
+            refreshGroup(updated);
+            setCommentTexts(prev => ({ ...prev, [commentKey]: '' }));
+          } catch (e) { console.error(e); }
+          finally { setCommentLoading(null); }
+        };
+
         return (
           <div key={sub.userId} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             {sub.media.length > 0 && (
               <div className="grid grid-cols-2 gap-1 bg-slate-100">
-                {sub.media.map((item, idx) => (
-                  <div key={idx} className="aspect-video">
-                    {item.type === 'VIDEO'
-                      ? <video src={item.url} controls className="w-full h-full object-cover" />
-                      : <img src={item.url} className="w-full h-full object-cover" />
-                    }
-                  </div>
-                ))}
+                {sub.media.map((item, idx) => {
+                  const allItems: LightboxItem[] = sub.media.map(m => ({
+                    media: m,
+                    uploaderName: user?.username || 'Unbekannt',
+                  }));
+                  return (
+                    <div
+                      key={idx}
+                      className="aspect-video cursor-pointer relative group"
+                      onClick={() => openLightbox(allItems, idx)}
+                    >
+                      {item.type === 'VIDEO'
+                        ? <video src={item.url} className="w-full h-full object-cover" />
+                        : <img src={item.url} className="w-full h-full object-cover" />
+                      }
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                        <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-bold" style={{textShadow: '0 1px 4px rgba(0,0,0,0.5)'}}>Vergrößern</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div className="p-4 flex items-center justify-between gap-3">
@@ -673,6 +764,50 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Comments Section */}
+            <div className="border-t border-slate-100 px-4 py-3">
+              {subComments.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {subComments.map((c, ci) => {
+                    const commenter = usersCache[c.userId];
+                    const time = new Date(c.timestamp);
+                    const timeStr = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`;
+                    return (
+                      <div key={ci} className="flex items-start gap-2">
+                        <img src={commenter?.avatar} className="w-6 h-6 rounded-full border border-slate-100 flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xs font-bold text-slate-700">{commenter?.username}</span>
+                            <span className="text-[10px] text-slate-400">{timeStr}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 break-words">{c.text}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Kommentar schreiben..."
+                  value={commentText}
+                  onChange={e => setCommentTexts(prev => ({ ...prev, [commentKey]: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter' && commentText.trim()) handleAddComment(); }}
+                  className="flex-grow p-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  disabled={commentLoading === commentKey}
+                />
+                <button
+                  onClick={handleAddComment}
+                  disabled={!commentText.trim() || commentLoading === commentKey}
+                  className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-all flex-shrink-0"
+                  title="Kommentar senden"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -788,6 +923,15 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
       {screen === 'create-group' && renderCreateGroup()}
       {screen === 'join-group'   && renderJoinGroup()}
       {screen === 'friends'      && renderFriends()}
+
+      {lightboxOpen && (
+        <MediaLightbox
+          items={lightboxItems}
+          currentIndex={lightboxIndex}
+          onClose={closeLightbox}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </div>
   );
 };
