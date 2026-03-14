@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Hourglass, Search, UserPlus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Hourglass, Search, UserPlus, ChevronLeft, ChevronRight, Trash2, Download } from 'lucide-react';
 import { Group, User, GroupChallenge, MediaItem } from '../types';
 import {
   createGroup,
@@ -308,6 +308,35 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   const getGroupInitials = (name: string) =>
     name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
+  const handleDownloadAllMedia = async (challenge: GroupChallenge) => {
+    let index = 1;
+    for (const sub of challenge.submissions) {
+      const user = usersCache[sub.userId];
+      const username = user?.username || 'user';
+      for (const item of sub.media) {
+        const url = item.url;
+        const a = document.createElement('a');
+        a.href = url;
+        const extMatch = url.match(/data:(.*?);/);
+        let ext = item.type === 'VIDEO' ? 'webm' : 'jpg';
+        if (extMatch && extMatch[1]) {
+          const mime = extMatch[1];
+          if (mime.includes('png')) ext = 'png';
+          else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+          else if (mime.includes('webm')) ext = 'webm';
+          else if (mime.includes('mp4')) ext = 'mp4';
+        }
+        a.download = `${challenge.title.replace(/[^a-z0-9]/gi, '_')}_${username}_${index++}.${ext}`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+  };
+
   // ─── Screens ───────────────────────────────────────────────────────────────
 
   const renderList = () => (
@@ -421,17 +450,28 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
             <div className="space-y-2">
               {group.pastChallenges.map(past => {
                 const winner = past.winnerId ? usersCache[past.winnerId] : null;
+                const hasMedia = past.submissions.some(s => s.media && s.media.length > 0);
                 return (
-                  <div key={past.id} className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-slate-800 text-sm">{past.title}</p>
-                      <p className="text-xs text-slate-400">{new Date(past.deadline).toLocaleDateString()}</p>
-                    </div>
-                    {winner && (
-                      <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
-                        <Crown className="w-3 h-3 text-amber-500" />
-                        <span className="text-xs font-bold text-amber-800">{winner.username}</span>
+                  <div key={past.id} className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-slate-800 text-sm">{past.title}</p>
+                        <p className="text-xs text-slate-400">{new Date(past.deadline).toLocaleDateString()}</p>
                       </div>
+                      {winner && (
+                        <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
+                          <Crown className="w-3 h-3 text-amber-500" />
+                          <span className="text-xs font-bold text-amber-800">{winner.username}</span>
+                        </div>
+                      )}
+                    </div>
+                    {hasMedia && (
+                      <button
+                        onClick={() => handleDownloadAllMedia(past)}
+                        className="flex items-center justify-center gap-2 w-full py-2 mt-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-medium transition-colors border border-slate-200"
+                      >
+                        <Download className="w-4 h-4" /> Media herunterladen
+                      </button>
                     )}
                   </div>
                 );
@@ -578,11 +618,20 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
         <h3 className="font-bold text-slate-800 flex items-center gap-2">
           <Star className="w-5 h-5 text-amber-500 fill-amber-500" /> Voting Phase
         </h3>
-        {group.memberIds[0] === currentUser.id && (
-          <button onClick={handleEndChallenge} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-xl hover:bg-indigo-700 font-bold">
-            Beenden
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleDownloadAllMedia(challenge)}
+            className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 font-bold"
+            title="Alle Bilder/Videos herunterladen"
+          >
+            <Download className="w-4 h-4" />
           </button>
-        )}
+          {group.memberIds[0] === currentUser.id && (
+            <button onClick={handleEndChallenge} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-xl hover:bg-indigo-700 font-bold">
+              Beenden
+            </button>
+          )}
+        </div>
       </div>
       {challenge.submissions.map(sub => {
         const user = usersCache[sub.userId];

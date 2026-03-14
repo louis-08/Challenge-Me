@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { Zap, ArrowRight, Loader2 } from 'lucide-react';
 import { loginUser, registerUser } from '../services/storageService';
 import { User } from '../types';
 
@@ -13,6 +13,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +97,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
               )}
             </button>
           </form>
+
+
 
           <div className="mt-6 text-center">
             <p className="text-sm text-slate-500">
