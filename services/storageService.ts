@@ -71,6 +71,7 @@ export const loginUser = async (username: string, password: string): Promise<Use
   });
 };
 
+
 export const logoutUser = async (): Promise<void> => {
   await apiFetch('/auth/logout', { method: 'POST' });
 };

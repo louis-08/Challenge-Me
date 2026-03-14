@@ -6,7 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 import rateLimit from 'express-rate-limit';
 import db from '../db';
 import { INITIAL_MILESTONES } from '../constants';
-
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET!;
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -93,6 +92,7 @@ router.post('/login', authLimiter, validateAuth, async (req: Request, res: Respo
   setTokenCookie(res, user.id);
   res.json(toPublicUser(user));
 });
+
 
 // POST /auth/logout
 router.post('/logout', (_req: Request, res: Response): void => {
