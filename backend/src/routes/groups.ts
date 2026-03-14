@@ -433,4 +433,51 @@ router.post('/:id/challenge/finish',
   }
 );
 
+// POST /groups/:id/challenge/comment — add a comment to a submission during voting
+router.post('/:id/challenge/comment',
+  authenticate,
+  param('id').isUUID(),
+  body('targetUserId').isUUID(),
+  body('text').trim().isLength({ min: 1, max: 500 }),
+  (req: AuthRequest, res: Response): void => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.status(400).json({ error: errors.array()[0].msg }); return; }
+
+    const { targetUserId, text } = req.body as { targetUserId: string; text: string };
+    const row = db.prepare('SELECT * FROM groups WHERE id = ?').get(req.params.id) as GroupRow | undefined;
+
+    if (!row) { res.status(404).json({ error: 'Gruppe nicht gefunden.' }); return; }
+
+    const memberIds: string[] = JSON.parse(row.member_ids);
+    if (!memberIds.includes(req.userId!)) {
+      res.status(403).json({ error: 'Kein Zugriff.' });
+      return;
+    }
+
+    if (!row.active_challenge) { res.status(400).json({ error: 'Keine aktive Challenge.' }); return; }
+
+    const challenge: GroupChallenge = JSON.parse(row.active_challenge);
+    if (challenge.status !== 'VOTING') { res.status(400).json({ error: 'Kommentare nur in der Voting-Phase möglich.' }); return; }
+
+    const subIdx = challenge.submissions.findIndex(s => s.userId === targetUserId);
+    if (subIdx === -1) { res.status(404).json({ error: 'Einreichung nicht gefunden.' }); return; }
+
+    if (!challenge.submissions[subIdx].comments) {
+      challenge.submissions[subIdx].comments = [];
+    }
+    challenge.submissions[subIdx].comments!.push({
+      userId: req.userId!,
+      text,
+      timestamp: new Date().toISOString()
+    });
+
+    db.prepare('UPDATE groups SET active_challenge = ? WHERE id = ?')
+      .run(JSON.stringify(challenge), row.id);
+
+    const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
+    res.json(toGroup(updated));
+  }
+);
+
 export default router;
