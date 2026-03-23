@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Hourglass, Search, UserPlus, ChevronLeft, ChevronRight, Trash2, Download } from 'lucide-react';
-import { Group, User, GroupChallenge, MediaItem } from '../types';
+import { Group, User, GroupChallenge, MediaItem, FriendRequest } from '../types';
 import {
   createGroup,
   joinGroup,
@@ -14,19 +14,28 @@ import {
   getUserById,
   getUserFriends,
   addFriend,
+  getFriendRequests,
+  respondToFriendRequest,
   API_BASE
 } from '../services/storageService';
 
 interface GroupDashboardProps {
   currentUser: User;
   onUpdate: () => void;
+  deepLink?: {
+    screen: 'group' | 'friends';
+    groupId?: string;
+    nonce: number;
+  } | null;
 }
 
 type Screen = 'list' | 'group' | 'create-group' | 'join-group' | 'friends';
 
-export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onUpdate }) => {
+export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onUpdate, deepLink }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
   const [usersCache, setUsersCache] = useState<Record<string, User>>({});
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>('list');
@@ -53,6 +62,20 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   useEffect(() => { selectedGroupIdRef.current = selectedGroupId; }, [selectedGroupId]);
 
   useEffect(() => { loadData(); }, [currentUser.id]);
+
+  useEffect(() => {
+    if (!deepLink) return;
+
+    if (deepLink.screen === 'friends') {
+      setScreen('friends');
+      return;
+    }
+
+    if (deepLink.screen === 'group' && deepLink.groupId) {
+      setSelectedGroupId(deepLink.groupId);
+      setScreen('group');
+    }
+  }, [deepLink?.nonce]);
 
   // SSE real-time updates
   useEffect(() => {
@@ -115,12 +138,16 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   }, [currentUser.id]);
 
   const loadData = async () => {
-    const [userGroups, userFriends] = await Promise.all([
+    const [userGroups, userFriends, incoming, outgoing] = await Promise.all([
       getUserGroups(currentUser.id),
-      getUserFriends(currentUser.id)
+      getUserFriends(currentUser.id),
+      getFriendRequests('incoming'),
+      getFriendRequests('outgoing')
     ]);
     setGroups(userGroups);
     setFriends(userFriends);
+    setIncomingRequests(incoming.filter(r => r.status === 'PENDING'));
+    setOutgoingRequests(outgoing.filter(r => r.status === 'PENDING'));
 
     const allMemberIds = [...new Set(userGroups.flatMap(g => g.memberIds))];
     const fetched = await Promise.all(allMemberIds.map(id => getUserById(id)));
@@ -198,12 +225,33 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
     setFriendSuccess('');
     try {
       await addFriend(currentUser.id, friendSearch);
-      setFriends(await getUserFriends(currentUser.id));
-      setFriendSuccess(`${friendSearch} hinzugefügt!`);
+      const [refreshedOutgoing] = await Promise.all([
+        getFriendRequests('outgoing')
+      ]);
+      setOutgoingRequests(refreshedOutgoing.filter(r => r.status === 'PENDING'));
+      setFriendSuccess(`Anfrage an ${friendSearch} gesendet!`);
       setFriendSearch('');
     } catch (e: any) {
       setError(e.message || 'Fehler beim Hinzufügen');
     } finally { setLoading(false); }
+  };
+
+  const handleRespondToRequest = async (requestId: string, action: 'ACCEPT' | 'DECLINE') => {
+    setLoading(true);
+    setError(null);
+    try {
+      await respondToFriendRequest(requestId, action);
+      const [userFriends, incoming] = await Promise.all([
+        getUserFriends(currentUser.id),
+        getFriendRequests('incoming')
+      ]);
+      setFriends(userFriends);
+      setIncomingRequests(incoming.filter(r => r.status === 'PENDING'));
+    } catch (e: any) {
+      setError(e.message || 'Anfrage konnte nicht verarbeitet werden.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const refreshGroup = async (updatedGroup: Group) => {
@@ -766,6 +814,56 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
       </form>
 
       <div className="space-y-2">
+        {incomingRequests.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400 font-bold mb-2">Eingehende Anfragen</p>
+            <div className="space-y-2">
+              {incomingRequests.map((req) => (
+                <div key={req.id} className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  <img src={req.otherUser?.avatar} className="w-10 h-10 rounded-full border border-amber-200 bg-white" />
+                  <div className="min-w-0 flex-grow">
+                    <span className="font-semibold text-slate-700 text-sm">{req.otherUser?.username || 'Unbekannt'}</span>
+                    <p className="text-xs text-amber-700">möchte mit dir befreundet sein</p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => handleRespondToRequest(req.id, 'ACCEPT')}
+                      className="px-2.5 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                      disabled={loading}
+                    >
+                      Annehmen
+                    </button>
+                    <button
+                      onClick={() => handleRespondToRequest(req.id, 'DECLINE')}
+                      className="px-2.5 py-1.5 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+                      disabled={loading}
+                    >
+                      Ablehnen
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {outgoingRequests.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400 font-bold mb-2">Ausstehende Anfragen</p>
+            <div className="space-y-2">
+              {outgoingRequests.map((req) => (
+                <div key={req.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <img src={req.otherUser?.avatar} className="w-10 h-10 rounded-full border border-slate-200 bg-white" />
+                  <div className="min-w-0 flex-grow">
+                    <span className="font-semibold text-slate-700 text-sm">{req.otherUser?.username || 'Unbekannt'}</span>
+                    <p className="text-xs text-slate-500">Anfrage ausstehend</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {friends.length === 0
           ? <p className="text-slate-400 text-sm">Noch keine Freunde hinzugefügt.</p>
           : friends.map(f => (

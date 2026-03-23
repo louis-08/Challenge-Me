@@ -5,6 +5,7 @@ import db from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { Group, GroupChallenge, ChallengeSubmission, MediaItem } from '../types';
 import { addClient, removeClient, notifyGroup } from '../sseClients';
+import { createNotification } from '../notifications';
 
 const router = Router();
 
@@ -20,6 +21,7 @@ interface GroupRow {
 
 interface UserRow {
   id: string;
+  username: string;
   group_ids: string;
   friend_ids: string;
 }
@@ -146,7 +148,7 @@ router.post('/join',
     joinGroup();
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
-    notifyGroup(row.id, { groupId: row.id }); // notify existing members
+    notifyGroup(row.id, { type: 'GROUP_UPDATED', groupId: row.id, createdAt: new Date().toISOString() });
     res.json(toGroup(updated));
   }
 );
@@ -199,7 +201,7 @@ router.delete('/:id',
     }
 
     // Notify BEFORE deleting so subscribers still exist
-    notifyGroup(row.id, { deleted: true, id: row.id });
+    notifyGroup(row.id, { type: 'GROUP_DELETED', deleted: true, id: row.id, createdAt: new Date().toISOString() });
 
     db.transaction(() => {
       // Remove group_id from all members
@@ -254,8 +256,26 @@ router.post('/:id/challenge',
     db.prepare('UPDATE groups SET active_challenge = ? WHERE id = ?')
       .run(JSON.stringify(challenge), row.id);
 
+    const creator = db.prepare('SELECT username FROM users WHERE id = ?').get(req.userId) as { username: string } | undefined;
+    const creatorName = creator?.username || 'Ein Mitglied';
+
+    for (const memberId of memberIds) {
+      if (memberId === req.userId) continue;
+      createNotification({
+        userId: memberId,
+        type: 'CHALLENGE_INVITED',
+        title: 'Neue Challenge-Einladung',
+        body: `${creatorName} hat eine neue Challenge in ${row.name} gestartet.`,
+        payload: {
+          groupId: row.id,
+          challengeId: challenge.id,
+          challengeTitle: challenge.title
+        }
+      });
+    }
+
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
-    notifyGroup(row.id, { groupId: row.id });
+    notifyGroup(row.id, { type: 'GROUP_UPDATED', groupId: row.id, createdAt: new Date().toISOString() });
     res.json(toGroup(updated));
   }
 );
@@ -302,6 +322,7 @@ router.post('/:id/challenge/submit',
     }
 
     // Auto-transition to voting when all members have submitted
+    const movedToVoting = challenge.submissions.length >= memberIds.length;
     if (challenge.submissions.length >= memberIds.length) {
       challenge.status = 'VOTING';
     }
@@ -309,8 +330,24 @@ router.post('/:id/challenge/submit',
     db.prepare('UPDATE groups SET active_challenge = ? WHERE id = ?')
       .run(JSON.stringify(challenge), row.id);
 
+    if (movedToVoting) {
+      for (const memberId of memberIds) {
+        createNotification({
+          userId: memberId,
+          type: 'CHALLENGE_VOTING_STARTED',
+          title: 'Votingphase gestartet',
+          body: `Die Challenge \"${challenge.title}\" ist beendet. Das Voting hat begonnen.`,
+          payload: {
+            groupId: row.id,
+            challengeId: challenge.id,
+            challengeTitle: challenge.title
+          }
+        });
+      }
+    }
+
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
-    notifyGroup(row.id, { groupId: row.id });
+    notifyGroup(row.id, { type: 'GROUP_UPDATED', groupId: row.id, createdAt: new Date().toISOString() });
     res.json(toGroup(updated));
   }
 );
@@ -332,13 +369,28 @@ router.post('/:id/challenge/vote',
     if (!row.active_challenge) { res.status(400).json({ error: 'Keine aktive Challenge.' }); return; }
 
     const challenge: GroupChallenge = JSON.parse(row.active_challenge);
-    challenge.status = 'VOTING';
+    if (challenge.status !== 'VOTING') {
+      challenge.status = 'VOTING';
+      for (const memberId of memberIds) {
+        createNotification({
+          userId: memberId,
+          type: 'CHALLENGE_VOTING_STARTED',
+          title: 'Votingphase gestartet',
+          body: `Die Challenge \"${challenge.title}\" ist beendet. Das Voting hat begonnen.`,
+          payload: {
+            groupId: row.id,
+            challengeId: challenge.id,
+            challengeTitle: challenge.title
+          }
+        });
+      }
+    }
 
     db.prepare('UPDATE groups SET active_challenge = ? WHERE id = ?')
       .run(JSON.stringify(challenge), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
-    notifyGroup(row.id, { groupId: row.id });
+    notifyGroup(row.id, { type: 'GROUP_UPDATED', groupId: row.id, createdAt: new Date().toISOString() });
     res.json(toGroup(updated));
   }
 );
@@ -383,7 +435,7 @@ router.post('/:id/challenge/rate',
       .run(JSON.stringify(challenge), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
-    notifyGroup(row.id, { groupId: row.id });
+    notifyGroup(row.id, { type: 'GROUP_UPDATED', groupId: row.id, createdAt: new Date().toISOString() });
     res.json(toGroup(updated));
   }
 );
@@ -428,7 +480,7 @@ router.post('/:id/challenge/finish',
       .run(JSON.stringify(pastChallenges), row.id);
 
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
-    notifyGroup(row.id, { groupId: row.id });
+    notifyGroup(row.id, { type: 'GROUP_UPDATED', groupId: row.id, createdAt: new Date().toISOString() });
     res.json(toGroup(updated));
   }
 );

@@ -1,4 +1,4 @@
-import { User, Group, Milestone, MediaItem } from '../types';
+import { User, Group, Milestone, MediaItem, AppNotification, FriendRequest } from '../types';
 import { INITIAL_MILESTONES } from '../constants';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -101,8 +101,8 @@ export const updateUserMilestones = async (_userId: string, milestones: Mileston
 
 // --- Friends ---
 
-export const addFriend = async (_currentUserId: string, friendUsername: string): Promise<User> => {
-  return apiFetch<User>('/users/me/friends', {
+export const addFriend = async (_currentUserId: string, friendUsername: string): Promise<{ ok: boolean; requestId: string; message: string }> => {
+  return apiFetch<{ ok: boolean; requestId: string; message: string }>('/users/me/friends', {
     method: 'POST',
     body: JSON.stringify({ username: friendUsername })
   });
@@ -110,6 +110,48 @@ export const addFriend = async (_currentUserId: string, friendUsername: string):
 
 export const getUserFriends = async (_userId: string): Promise<User[]> => {
   return apiFetch<User[]>('/users/me/friends');
+};
+
+export const getFriendRequests = async (scope: 'incoming' | 'outgoing' | 'all' = 'incoming'): Promise<FriendRequest[]> => {
+  return apiFetch<FriendRequest[]>(`/users/me/friends/requests?scope=${scope}`);
+};
+
+export const respondToFriendRequest = async (requestId: string, action: 'ACCEPT' | 'DECLINE'): Promise<FriendRequest> => {
+  return apiFetch<FriendRequest>(`/users/me/friends/requests/${requestId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  });
+};
+
+export const getNotifications = async (limit = 50): Promise<AppNotification[]> => {
+  return apiFetch<AppNotification[]>(`/users/me/notifications?limit=${limit}`);
+};
+
+export const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+  await apiFetch(`/users/me/notifications/${notificationId}/read`, { method: 'PATCH' });
+};
+
+export const markAllNotificationsAsRead = async (): Promise<void> => {
+  await apiFetch('/users/me/notifications/read-all', { method: 'PATCH' });
+};
+
+export const getPushPublicKey = async (): Promise<string> => {
+  const data = await apiFetch<{ publicKey: string }>('/users/me/push/public-key');
+  return data.publicKey;
+};
+
+export const subscribePush = async (subscription: PushSubscription): Promise<void> => {
+  await apiFetch('/users/me/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ subscription })
+  });
+};
+
+export const unsubscribePush = async (endpoint: string): Promise<void> => {
+  await apiFetch('/users/me/push/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint })
+  });
 };
 
 // --- Groups ---

@@ -1,11 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Dice5, Search, CheckCircle2, PartyPopper, ChevronDown, ChevronUp, User as UserIcon } from 'lucide-react';
-import { Milestone, MilestoneCategory, User, Difficulty, Group } from './types';
+import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Dice5, Search, CheckCircle2, PartyPopper, ChevronDown, ChevronUp, User as UserIcon, Bell, CheckCheck } from 'lucide-react';
+import { Milestone, MilestoneCategory, User, Difficulty, Group, AppNotification } from './types';
 import { MilestoneCard } from './components/MilestoneCard';
 import { AuthScreen } from './components/AuthScreen';
 import { GroupDashboard } from './components/GroupDashboard';
 import { LocalMode } from './components/LocalMode';
-import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends } from './services/storageService';
+import {
+  getCurrentSessionUser,
+  logoutUser,
+  updateUserMilestones,
+  getUserGroups,
+  startGroupChallenge,
+  createGroup,
+  getUserFriends,
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  getPushPublicKey,
+  subscribePush,
+  unsubscribePush,
+  API_BASE
+} from './services/storageService';
 import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from './constants';
 import { generateCreativeMilestones } from './services/geminiService';
 
@@ -254,6 +269,14 @@ function App() {
   // App State
   const [activeTab, setActiveTab] = useState<'feed' | 'groups' | 'local'>('feed');
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default');
+  const [groupDeepLink, setGroupDeepLink] = useState<{ screen: 'group' | 'friends'; groupId?: string; nonce: number } | null>(null);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushServerAvailable, setPushServerAvailable] = useState<boolean | null>(null);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   
   // Feed Generator State
   const [genCategory, setGenCategory] = useState<string>('MIX');
@@ -288,6 +311,315 @@ function App() {
       updateUserMilestones(currentUser.id, currentUser.milestones);
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setBrowserPermission(Notification.permission);
+    }
+    if (typeof window !== 'undefined') {
+      setPushSupported('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+    }
+  }, []);
+
+  const applyDeepLinkUrl = (rawUrl: string) => {
+    try {
+      const url = new URL(rawUrl, window.location.origin);
+      const tab = url.searchParams.get('tab');
+      const screen = url.searchParams.get('screen');
+      const groupId = url.searchParams.get('groupId') || undefined;
+
+      if (tab === 'groups') {
+        setActiveTab('groups');
+        if (screen === 'friends') {
+          setGroupDeepLink({ screen: 'friends', nonce: Date.now() });
+        } else if (screen === 'group' && groupId) {
+          setGroupDeepLink({ screen: 'group', groupId, nonce: Date.now() });
+        }
+      }
+
+      if (url.searchParams.toString()) {
+        window.history.replaceState({}, '', '/');
+      }
+    } catch {
+      // ignore invalid URLs
+    }
+  };
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+    const handleSwMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; url?: string } | undefined;
+      if (data?.type === 'DEEP_LINK' && data.url) {
+        applyDeepLinkUrl(data.url);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    applyDeepLinkUrl(window.location.href);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let es: EventSource | null = null;
+    let retryTimeout: number | null = null;
+
+    const connect = () => {
+      es = new EventSource(`${API_BASE}/users/stream`, { withCredentials: true });
+
+      es.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data) as {
+            connected?: boolean;
+            type?: string;
+            payload?: AppNotification;
+          };
+
+          if (msg.connected) return;
+
+          if (msg.type === 'NOTIFICATION_CREATED' && msg.payload) {
+            setNotifications((prev) => [msg.payload!, ...prev].slice(0, 50));
+
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              const isVisible = document.visibilityState === 'visible';
+              if (!isVisible) {
+                new Notification(msg.payload.title, {
+                  body: msg.payload.body,
+                  tag: msg.payload.id
+                });
+              }
+            }
+          }
+        } catch {
+          // ignore malformed message
+        }
+      };
+
+      es.onerror = () => {
+        es?.close();
+        retryTimeout = window.setTimeout(connect, 3000);
+      };
+    };
+
+    getNotifications(50).then(setNotifications).catch(() => {});
+    connect();
+
+    return () => {
+      es?.close();
+      if (retryTimeout) window.clearTimeout(retryTimeout);
+    };
+  }, [currentUser?.id]);
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const syncPushStatus = async () => {
+    if (!currentUser || !pushSupported) {
+      setPushSubscribed(false);
+      return;
+    }
+
+    try {
+      await getPushPublicKey();
+      setPushServerAvailable(true);
+    } catch {
+      setPushServerAvailable(false);
+      setPushSubscribed(false);
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      setPushSubscribed(!!existing);
+    } catch {
+      setPushSubscribed(false);
+    }
+  };
+
+  const registerPushSubscription = async (forceResubscribe = false) => {
+    if (!currentUser) return;
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    const registration = await navigator.serviceWorker.ready;
+    let existing = await registration.pushManager.getSubscription();
+
+    if (existing && forceResubscribe) {
+      try {
+        await unsubscribePush(existing.endpoint);
+      } catch {
+        // ignore backend cleanup errors
+      }
+      await existing.unsubscribe();
+      existing = null;
+    }
+
+    if (existing) {
+      await subscribePush(existing);
+      setPushSubscribed(true);
+      return;
+    }
+
+    const publicKey = await getPushPublicKey();
+    setPushServerAvailable(true);
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    await subscribePush(subscription);
+    setPushSubscribed(true);
+  };
+
+  const handleUnsubscribePush = async () => {
+    if (!currentUser || !pushSupported) return;
+    setPushBusy(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await unsubscribePush(existing.endpoint);
+        await existing.unsubscribe();
+      }
+      setPushSubscribed(false);
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleResubscribePush = async () => {
+    setPushBusy(true);
+    try {
+      await registerPushSubscription(true);
+      await syncPushStatus();
+    } catch (error) {
+      console.error('Push re-subscription failed', error);
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (browserPermission !== 'granted') return;
+
+    registerPushSubscription().then(syncPushStatus).catch(() => {});
+  }, [currentUser?.id, browserPermission, pushSupported]);
+
+  useEffect(() => {
+    if (!currentUser || !pushSupported) return;
+    syncPushStatus().catch(() => {});
+  }, [currentUser?.id, pushSupported]);
+
+  const handleEnableBrowserNotifications = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert('Dieser Browser unterstützt keine System-Benachrichtigungen.');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setBrowserPermission(permission);
+    if (permission === 'granted') {
+      try {
+        await registerPushSubscription();
+        await syncPushStatus();
+      } catch (error) {
+        console.error('Push subscription failed', error);
+      }
+    }
+  };
+
+  const handleOpenNotifications = () => {
+    setNotificationPanelOpen((prev) => !prev);
+  };
+
+  const handleNotificationClick = async (notification: AppNotification) => {
+    try {
+      if (!notification.isRead) {
+        await markNotificationAsRead(notification.id);
+      }
+      setNotifications((prev) => prev.map((n) => n.id === notification.id ? { ...n, isRead: true } : n));
+
+      const payload = notification.payload as Record<string, unknown>;
+      if (
+        notification.type === 'CHALLENGE_INVITED'
+        || notification.type === 'CHALLENGE_VOTING_STARTED'
+      ) {
+        const groupId = typeof payload.groupId === 'string' ? payload.groupId : undefined;
+        if (groupId) {
+          setActiveTab('groups');
+          setGroupDeepLink({ screen: 'group', groupId, nonce: Date.now() });
+        }
+      }
+
+      if (
+        notification.type === 'FRIEND_REQUEST_RECEIVED'
+        || notification.type === 'FRIEND_REQUEST_ACCEPTED'
+        || notification.type === 'FRIEND_REQUEST_DECLINED'
+      ) {
+        setActiveTab('groups');
+        setGroupDeepLink({ screen: 'friends', nonce: Date.now() });
+      }
+
+      setNotificationPanelOpen(false);
+    } catch {
+      // ignore transient error
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'groups' || !groupDeepLink) return;
+
+    const friendTypes = new Set(['FRIEND_REQUEST_RECEIVED', 'FRIEND_REQUEST_ACCEPTED', 'FRIEND_REQUEST_DECLINED']);
+    const challengeTypes = new Set(['CHALLENGE_INVITED', 'CHALLENGE_VOTING_STARTED']);
+
+    let targets: AppNotification[] = [];
+    if (groupDeepLink.screen === 'friends') {
+      targets = notifications.filter((n) => !n.isRead && friendTypes.has(n.type));
+    }
+
+    if (groupDeepLink.screen === 'group' && groupDeepLink.groupId) {
+      targets = notifications.filter((n) => {
+        if (n.isRead || !challengeTypes.has(n.type)) return false;
+        const payload = n.payload as Record<string, unknown>;
+        return payload.groupId === groupDeepLink.groupId;
+      });
+    }
+
+    if (targets.length === 0) return;
+
+    setNotifications((prev) => prev.map((n) => targets.some((t) => t.id === n.id) ? { ...n, isRead: true } : n));
+    Promise.all(targets.map((n) => markNotificationAsRead(n.id))).catch(() => {});
+  }, [activeTab, groupDeepLink?.nonce, notifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch {
+      // ignore transient error
+    }
+  };
 
   const handleLogout = () => {
     logoutUser().catch(() => {});
@@ -378,6 +710,98 @@ function App() {
           </div>
           
           <div className="flex items-center gap-4">
+            <div className="relative">
+              <button
+                onClick={handleOpenNotifications}
+                className="relative p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors"
+                title="Benachrichtigungen"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notificationPanelOpen && (
+                <div className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-2xl z-50">
+                  <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                    <p className="font-bold text-slate-800 text-sm">Benachrichtigungen</p>
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" /> Alle gelesen
+                    </button>
+                  </div>
+
+                  <div className="p-2 space-y-1.5">
+                    <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Push Einstellungen</p>
+                      {!pushSupported && (
+                        <p className="text-xs text-slate-500">Dieser Browser unterstützt Web Push nicht.</p>
+                      )}
+
+                      {pushSupported && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-slate-600">
+                            Status: <span className="font-semibold text-slate-800">{pushSubscribed ? 'Aktiv' : 'Inaktiv'}</span>
+                          </p>
+                          {pushServerAvailable === false && (
+                            <p className="text-xs text-amber-700">Push Server ist nicht konfiguriert (fehlende VAPID Keys).</p>
+                          )}
+                          {browserPermission !== 'granted' && pushServerAvailable !== false && (
+                            <button
+                              onClick={handleEnableBrowserNotifications}
+                              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg"
+                              disabled={pushBusy}
+                            >
+                              Aktivieren
+                            </button>
+                          )}
+                          {browserPermission === 'granted' && pushServerAvailable !== false && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleResubscribePush}
+                                className="text-xs bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                                disabled={pushBusy}
+                              >
+                                Neu abonnieren
+                              </button>
+                              <button
+                                onClick={handleUnsubscribePush}
+                                className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                                disabled={pushBusy || !pushSubscribed}
+                              >
+                                Abmelden
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {notifications.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-6">Noch keine Benachrichtigungen.</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={`w-full text-left p-3 rounded-xl border transition-colors ${n.isRead ? 'bg-white border-slate-100' : 'bg-amber-50 border-amber-200'}`}
+                        >
+                          <p className="text-sm font-semibold text-slate-800">{n.title}</p>
+                          <p className="text-xs text-slate-600 mt-1">{n.body}</p>
+                          <p className="text-[10px] text-slate-400 mt-2">{new Date(n.createdAt).toLocaleString()}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
              <div className="hidden sm:flex items-center gap-2 mr-2">
                <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
             </div>
@@ -603,6 +1027,7 @@ function App() {
         {activeTab === 'groups' && (
           <GroupDashboard
             currentUser={currentUser}
+            deepLink={groupDeepLink}
             onUpdate={() => {
                getCurrentSessionUser().then(updated => {
                  if (updated) setCurrentUser(updated);
