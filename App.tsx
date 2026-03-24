@@ -249,6 +249,7 @@ const ChallengeSetupModal: React.FC<ChallengeSetupProps> = ({ milestone, onClose
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [guestMode, setGuestMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // App State
@@ -336,8 +337,13 @@ function App() {
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-900 text-white">Lade Challenge Me...</div>;
 
-  if (!currentUser) {
-    return <AuthScreen onSuccess={setCurrentUser} />;
+  if (!currentUser && !guestMode) {
+    return (
+      <AuthScreen
+        onSuccess={setCurrentUser}
+        onPlayLocal={() => { setGuestMode(true); setActiveTab('local'); }}
+      />
+    );
   }
 
   return (
@@ -378,22 +384,51 @@ function App() {
           </div>
           
           <div className="flex items-center gap-4">
-             <div className="hidden sm:flex items-center gap-2 mr-2">
-               <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
+            {currentUser ? (
+              <>
+                <div className="hidden sm:flex items-center gap-2 mr-2">
+                  <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setGuestMode(false)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all"
+              >
+                Anmelden
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         
-        {activeTab === 'feed' && (
+        {activeTab === 'feed' && guestMode && (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-6">
+              <Zap className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-2">Login erforderlich</h2>
+            <p className="text-slate-500 mb-6 max-w-sm">
+              Melde dich an oder erstelle ein Konto, um den Feed zu nutzen und Challenges zu starten.
+            </p>
+            <button
+              onClick={() => setGuestMode(false)}
+              className="px-6 py-3 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 text-white font-bold rounded-xl shadow-lg transition-all"
+            >
+              Jetzt einloggen / registrieren
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'feed' && !guestMode && (
           <>
             {/* BIG FEED GENERATOR HEADER */}
             <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl p-8 mb-10 shadow-xl shadow-indigo-200 text-white">
@@ -600,7 +635,25 @@ function App() {
           </>
         )}
 
-        {activeTab === 'groups' && (
+        {activeTab === 'groups' && guestMode && (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-6">
+              <Users className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-2">Login erforderlich</h2>
+            <p className="text-slate-500 mb-6 max-w-sm">
+              Melde dich an oder erstelle ein Konto, um der Community beizutreten und Gruppen zu nutzen.
+            </p>
+            <button
+              onClick={() => setGuestMode(false)}
+              className="px-6 py-3 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 text-white font-bold rounded-xl shadow-lg transition-all"
+            >
+              Jetzt einloggen / registrieren
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'groups' && !guestMode && (
           <GroupDashboard
             currentUser={currentUser}
             onUpdate={() => {
@@ -619,7 +672,7 @@ function App() {
 
       {/* Modals */}
       
-      <ChallengeSetupModal 
+      {currentUser && <ChallengeSetupModal
         milestone={selectedChallenge}
         onClose={() => setSelectedChallenge(null)}
         currentUser={currentUser}
@@ -627,7 +680,7 @@ function App() {
           setSelectedChallenge(null);
           setActiveTab('groups'); // Switch to community to see the new battle
         }}
-      />
+      />}
       
     </div>
   );
