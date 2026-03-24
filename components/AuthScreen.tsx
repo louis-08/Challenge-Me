@@ -5,9 +5,10 @@ import { User } from '../types';
 
 interface AuthScreenProps {
   onSuccess: (user: User) => void;
+  onPlayLocal?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onPlayLocal }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -98,22 +99,47 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
             </button>
           </form>
 
+          {onPlayLocal && (
+            <div className="mt-6 space-y-4">
+              
+              <div className="text-center text-sm text-slate-600">
+                <span>{isLogin ? 'Noch kein Konto?' : 'Bereits dabei?'}</span>
+                <button
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setError(null);
+                  }}
+                  className="ml-2 text-indigo-600 font-medium hover:underline focus:outline-none"
+                >
+                  {isLogin ? 'Registrieren' : 'Anmelden'}
+                </button>
+              </div>
 
+              <hr className="border-slate-200" />
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-slate-500">
-              {isLogin ? 'Noch kein Konto?' : 'Bereits dabei?'}
               <button
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError(null);
-                }}
-                className="ml-2 text-indigo-600 font-medium hover:underline focus:outline-none"
+                type="button"
+                onClick={onPlayLocal}
+                className="
+                  w-full
+                  py-3
+                  bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500
+                  hover:opacity-90
+                  text-white
+                  font-bold
+                  rounded-xl
+                  shadow-md
+                  transition-all
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                "
               >
-                {isLogin ? 'Registrieren' : 'Anmelden'}
+                Lokal spielen – ohne Login →
               </button>
-            </p>
-          </div>
+            </div>
+          )}
         </div>
         
       </div>
