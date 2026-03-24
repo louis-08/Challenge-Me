@@ -28,6 +28,14 @@ db.exec(`
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS friend_requests (
+    id          TEXT PRIMARY KEY,
+    from_user_id TEXT NOT NULL REFERENCES users(id),
+    to_user_id   TEXT NOT NULL REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(from_user_id, to_user_id)
+  );
+
   CREATE TABLE IF NOT EXISTS groups (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL,

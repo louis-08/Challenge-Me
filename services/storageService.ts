@@ -101,11 +101,36 @@ export const updateUserMilestones = async (_userId: string, milestones: Mileston
 
 // --- Friends ---
 
-export const addFriend = async (_currentUserId: string, friendUsername: string): Promise<User> => {
-  return apiFetch<User>('/users/me/friends', {
+export interface FriendRequest {
+  id: string;
+  from_user_id: string;
+  created_at: string;
+  username: string;
+  avatar: string;
+}
+
+export const sendFriendRequest = async (friendUsername: string): Promise<void> => {
+  await apiFetch('/users/me/friend-requests', {
     method: 'POST',
     body: JSON.stringify({ username: friendUsername })
   });
+};
+
+export const getFriendRequests = async (): Promise<FriendRequest[]> => {
+  return apiFetch<FriendRequest[]>('/users/me/friend-requests');
+};
+
+export const acceptFriendRequest = async (requestId: string): Promise<void> => {
+  await apiFetch(`/users/me/friend-requests/${requestId}/accept`, { method: 'POST' });
+};
+
+export const declineFriendRequest = async (requestId: string): Promise<void> => {
+  await apiFetch(`/users/me/friend-requests/${requestId}/decline`, { method: 'POST' });
+};
+
+// Keep for backward compatibility
+export const addFriend = async (_currentUserId: string, friendUsername: string): Promise<void> => {
+  await sendFriendRequest(friendUsername);
 };
 
 export const getUserFriends = async (_userId: string): Promise<User[]> => {
