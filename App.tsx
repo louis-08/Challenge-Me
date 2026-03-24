@@ -351,60 +351,76 @@ function App() {
       
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-900 p-1.5 rounded-lg transform -rotate-3">
-              <Zap className="w-5 h-5 text-amber-400" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+
+          {/* Mobile: Logo-Zeile */}
+          <div className="relative flex sm:hidden items-center justify-between h-12 border-b border-slate-100">
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-200 transform -rotate-3">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-xl font-black italic tracking-tighter text-slate-900">
+                CHALLENGE<span className="text-indigo-600">ME</span>
+              </h1>
             </div>
-            <h1 className="text-xl font-black italic tracking-tighter text-slate-900 hidden sm:block">
-              CHALLENGE<span className="text-indigo-600">ME</span>
-            </h1>
-            
-            {/* Nav Tabs */}
-            <div className="flex ml-6 bg-slate-100 p-1 rounded-lg">
-              <button 
-                onClick={() => setActiveTab('feed')}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'feed' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Feed
-              </button>
-              <button
-                onClick={() => setActiveTab('groups')}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Community
-              </button>
-              <button
-                onClick={() => setActiveTab('local')}
-                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-1 ${activeTab === 'local' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Lokal
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {currentUser ? (
-              <>
-                <div className="hidden sm:flex items-center gap-2 mr-2">
-                  <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors"
-                >
-                  <LogOut className="w-5 h-5" />
+            <div className="ml-auto flex items-center gap-2">
+              {currentUser ? (
+                <>
+                  <img src={currentUser.avatar} alt="Avatar" className="w-7 h-7 rounded-full border border-slate-200" />
+                  <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors">
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setGuestMode(false)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all">
+                  Anmelden
                 </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setGuestMode(false)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all"
-              >
-                Anmelden
-              </button>
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Mobile: Tab-Zeile */}
+          <div className="flex sm:hidden items-center justify-center h-10">
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+              <button onClick={() => setActiveTab('feed')} className={`px-4 py-1 rounded-md text-sm font-bold transition-all ${activeTab === 'feed' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Feed</button>
+              <button onClick={() => setActiveTab('groups')} className={`px-4 py-1 rounded-md text-sm font-bold transition-all ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Community</button>
+              <button onClick={() => setActiveTab('local')} className={`px-4 py-1 rounded-md text-sm font-bold transition-all ${activeTab === 'local' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Lokal</button>
+            </div>
+          </div>
+
+          {/* Desktop: einzeilig */}
+          <div className="hidden sm:flex items-center justify-between h-16">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-200 transform -rotate-3">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-xl font-black italic tracking-tighter text-slate-900">
+                CHALLENGE<span className="text-indigo-600">ME</span>
+              </h1>
+              <div className="flex ml-6 bg-slate-100 p-1 rounded-lg">
+                <button onClick={() => setActiveTab('feed')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'feed' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Feed</button>
+                <button onClick={() => setActiveTab('groups')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Community</button>
+                <button onClick={() => setActiveTab('local')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'local' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Lokal</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {currentUser ? (
+                <>
+                  <div className="flex items-center gap-2 mr-2">
+                    <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
+                  </div>
+                  <button onClick={handleLogout} className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors">
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setGuestMode(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all">
+                  Anmelden
+                </button>
+              )}
+            </div>
+          </div>
+
         </div>
       </header>
 
@@ -412,7 +428,7 @@ function App() {
         
         {activeTab === 'feed' && guestMode && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-6 transform -rotate-3">
               <Zap className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-black text-slate-800 mb-2">Login erforderlich</h2>
@@ -637,7 +653,7 @@ function App() {
 
         {activeTab === 'groups' && guestMode && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-6 transform -rotate-3">
               <Users className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-black text-slate-800 mb-2">Login erforderlich</h2>

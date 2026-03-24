@@ -15,7 +15,11 @@ import {
   addSubmissionComment,
   getUserById,
   getUserFriends,
-  addFriend,
+  sendFriendRequest,
+  getFriendRequests,
+  acceptFriendRequest,
+  declineFriendRequest,
+  FriendRequest,
   API_BASE
 } from '../services/storageService';
 
@@ -29,6 +33,7 @@ type Screen = 'list' | 'group' | 'create-group' | 'join-group' | 'friends';
 export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onUpdate }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [usersCache, setUsersCache] = useState<Record<string, User>>({});
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>('list');
@@ -101,9 +106,11 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
 
       es.onmessage = (event) => {
         try {
-          const msg = JSON.parse(event.data) as { connected?: boolean; deleted?: boolean; id?: string; groupId?: string };
+          const msg = JSON.parse(event.data) as { connected?: boolean; deleted?: boolean; id?: string; groupId?: string; friendRequest?: FriendRequest };
           if (msg.connected) return; // initial handshake, ignore
-          if (msg.deleted && msg.id) {
+          if (msg.friendRequest) {
+            setFriendRequests(prev => [...prev, msg.friendRequest!]);
+          } else if (msg.deleted && msg.id) {
             setGroups(prev => prev.filter(g => g.id !== msg.id));
             if (selectedGroupIdRef.current === msg.id) {
               setSelectedGroupId(null);
@@ -136,12 +143,14 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   }, [currentUser.id]);
 
   const loadData = async () => {
-    const [userGroups, userFriends] = await Promise.all([
+    const [userGroups, userFriends, requests] = await Promise.all([
       getUserGroups(currentUser.id),
-      getUserFriends(currentUser.id)
+      getUserFriends(currentUser.id),
+      getFriendRequests()
     ]);
     setGroups(userGroups);
     setFriends(userFriends);
+    setFriendRequests(requests);
 
     const allMemberIds = [...new Set(userGroups.flatMap(g => g.memberIds))];
     const fetched = await Promise.all(allMemberIds.map(id => getUserById(id)));
@@ -212,19 +221,37 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
     } finally { setLoading(false); }
   };
 
-  const handleAddFriend = async (e: React.FormEvent) => {
+  const handleSendFriendRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setFriendSuccess('');
     try {
-      await addFriend(currentUser.id, friendSearch);
-      setFriends(await getUserFriends(currentUser.id));
-      setFriendSuccess(`${friendSearch} hinzugefügt!`);
+      await sendFriendRequest(friendSearch);
+      setFriendSuccess(`Anfrage an ${friendSearch} gesendet!`);
       setFriendSearch('');
     } catch (e: any) {
-      setError(e.message || 'Fehler beim Hinzufügen');
+      setError(e.message || 'Fehler beim Senden der Anfrage');
     } finally { setLoading(false); }
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    try {
+      await acceptFriendRequest(requestId);
+      setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+      setFriends(await getUserFriends(currentUser.id));
+    } catch (e: any) {
+      setError(e.message || 'Fehler beim Annehmen');
+    }
+  };
+
+  const handleDeclineRequest = async (requestId: string) => {
+    try {
+      await declineFriendRequest(requestId);
+      setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (e: any) {
+      setError(e.message || 'Fehler beim Ablehnen');
+    }
   };
 
   const refreshGroup = async (updatedGroup: Group) => {
@@ -879,7 +906,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
       </button>
       <h2 className="text-xl font-bold text-slate-800 mb-4">Freunde</h2>
 
-      <form onSubmit={handleAddFriend} className="mb-6">
+      <form onSubmit={handleSendFriendRequest} className="mb-6">
         <div className="flex gap-2">
           <div className="relative flex-grow">
             <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
@@ -899,6 +926,34 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
         {error && <p className="text-rose-500 text-sm mt-2">{error}</p>}
         {friendSuccess && <p className="text-emerald-500 text-sm mt-2">{friendSuccess}</p>}
       </form>
+
+      {friendRequests.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Eingehende Anfragen</h3>
+          <div className="space-y-2">
+            {friendRequests.map(req => (
+              <div key={req.id} className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                <img src={req.avatar} className="w-10 h-10 rounded-full border border-slate-200" />
+                <span className="font-semibold text-slate-700 text-sm flex-grow">{req.username}</span>
+                <button
+                  onClick={() => handleAcceptRequest(req.id)}
+                  className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+                  title="Annehmen"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDeclineRequest(req.id)}
+                  className="p-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300"
+                  title="Ablehnen"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {friends.length === 0
