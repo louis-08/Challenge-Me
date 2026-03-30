@@ -96,12 +96,12 @@ const ChallengeSetupModal: React.FC<ChallengeSetupProps> = ({ milestone, onClose
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-        <div className="p-6 bg-slate-900 text-white flex-shrink-0">
+        <div className="p-6 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex-shrink-0">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Swords className="w-6 h-6 text-amber-400" />
+            <Swords className="w-6 h-6 text-white/90" />
             Challenge Mode
           </h2>
-          <p className="text-slate-400 text-sm mt-1">Konfiguriere dein Battle</p>
+          <p className="text-white/80 text-sm mt-1">Konfiguriere dein Battle</p>
         </div>
         
         <div className="p-6 overflow-y-auto">

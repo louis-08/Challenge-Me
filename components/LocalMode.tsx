@@ -30,8 +30,8 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
   // Challenge
   const [selectedChallenge, setSelectedChallenge] = useState<Milestone | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
-  const [difficultyFilter, setDifficultyFilter] = useState<string>('ALL');
+  const [generatorCategory, setGeneratorCategory] = useState<string>('ALL');
+  const [generatorDifficulty, setGeneratorDifficulty] = useState<string>('ALL');
   const [aiChallenges, setAiChallenges] = useState<Milestone[]>([]);
 
   // Generator
@@ -57,20 +57,18 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
   const baseChallenges = feedChallenges.length > 0 ? feedChallenges : INITIAL_MILESTONES;
   const allChallenges = [...aiChallenges, ...baseChallenges];
 
-  const filteredChallenges = allChallenges.filter(c => {
-    const key = Object.entries(MilestoneCategory).find(([, v]) => v === c.category)?.[0] ?? '';
-    const catOk = categoryFilter === 'ALL' || key === categoryFilter;
-    const diffOk = difficultyFilter === 'ALL' || c.difficulty === difficultyFilter;
-    return catOk && diffOk;
-  });
-
   // ─── Generator ─────────────────────────────────────────────────────────────
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
       const contextParts = [genContext, genTeamMode === 'TEAM' ? 'Im Team zu erledigen' : 'Solo zu erledigen'].filter(Boolean);
-      const results = await generateCreativeMilestones(categoryFilter === 'ALL' ? 'MIX' : categoryFilter, difficultyFilter === 'ALL' ? 'ALL' : difficultyFilter, contextParts.join(', '), 10);
+      const results = await generateCreativeMilestones(
+        generatorCategory === 'ALL' ? 'MIX' : generatorCategory,
+        generatorDifficulty === 'ALL' ? 'ALL' : generatorDifficulty,
+        contextParts.join(', '),
+        10
+      );
       if (results.length > 0) setAiChallenges(prev => [...results, ...prev]);
     } finally {
       setIsGenerating(false);
@@ -309,8 +307,8 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
                 <div>
                   <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Kategorie</label>
                   <select
-                    value={categoryFilter}
-                    onChange={e => setCategoryFilter(e.target.value)}
+                    value={generatorCategory}
+                    onChange={e => setGeneratorCategory(e.target.value)}
                     className="w-full bg-white text-slate-800 rounded-xl px-3 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
                   >
                     <option value="ALL">🎲 Alle Kategorien</option>
@@ -322,8 +320,8 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
                 <div>
                   <label className="text-xs font-bold uppercase text-indigo-200 mb-1.5 block">Level</label>
                   <select
-                    value={difficultyFilter}
-                    onChange={e => setDifficultyFilter(e.target.value)}
+                    value={generatorDifficulty}
+                    onChange={e => setGeneratorDifficulty(e.target.value)}
                     className="w-full bg-white text-slate-800 rounded-xl px-3 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
                   >
                     <option value="ALL">🚀 Zufall</option>
@@ -395,10 +393,10 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
           </button>
           <button
             onClick={() => {
-              const pick = filteredChallenges[Math.floor(Math.random() * filteredChallenges.length)];
+              const pick = allChallenges[Math.floor(Math.random() * allChallenges.length)];
               if (pick) spin(pick);
             }}
-            disabled={filteredChallenges.length === 0}
+            disabled={allChallenges.length === 0}
             className="flex w-full sm:w-auto items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-900 px-4 py-3 rounded-full text-sm font-black shadow-lg shadow-amber-900/20 transition-all active:scale-95 disabled:opacity-40"
           >
             <Shuffle className="w-4 h-4" strokeWidth={2.75} />
@@ -483,7 +481,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
         {/* Feed-style card grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredChallenges.map(m => (
+          {allChallenges.map(m => (
             <div key={m.id} className="h-full">
               <MilestoneCard
                 milestone={m}
