@@ -1,10 +1,34 @@
 import { Router, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcrypt';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import db from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { notifyUser } from '../sseClients';
 import { Milestone } from '../types';
+
+const UPLOADS_DIR = path.join(__dirname, '../../uploads/avatars');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `${uuidv4()}${ext}`);
+  }
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Nur Bilddateien erlaubt.'));
+  }
+});
 
 const router = Router();
 
@@ -168,6 +192,103 @@ router.get('/me/friends',
     const placeholders = friendIds.map(() => '?').join(',');
     const friends = db.prepare(`SELECT * FROM users WHERE id IN (${placeholders})`).all(...friendIds) as UserRow[];
     res.json(friends.map(toPublicUser));
+  }
+);
+
+// POST /users/me/avatar — upload a profile photo
+router.post('/me/avatar',
+  authenticate,
+  avatarUpload.single('avatar'),
+  (req: AuthRequest, res: Response): void => {
+    if (!req.file) { res.status(400).json({ error: 'Kein Bild hochgeladen.' }); return; }
+
+    // Delete old avatar file if it was a local upload
+    const user = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.userId) as { avatar: string } | undefined;
+    if (user?.avatar?.startsWith('/uploads/')) {
+      const oldPath = path.join(__dirname, '../..', user.avatar);
+      fs.unlink(oldPath, () => {});
+    }
+
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarUrl, req.userId);
+    res.json({ avatar: avatarUrl });
+  }
+);
+
+// PATCH /users/me/profile — update username, password, or avatar
+router.patch('/me/profile',
+  authenticate,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const { username, password, avatar } = req.body as { username?: string; password?: string; avatar?: string };
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId) as UserRow | undefined;
+    if (!user) { res.status(404).json({ error: 'Benutzer nicht gefunden.' }); return; }
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (username !== undefined) {
+      const trimmed = username.trim();
+      if (trimmed.length < 3 || trimmed.length > 30) { res.status(400).json({ error: 'Benutzername muss 3–30 Zeichen lang sein.' }); return; }
+      if (!/^[a-zA-Z0-9_\-]+$/.test(trimmed)) { res.status(400).json({ error: 'Benutzername darf nur Buchstaben, Zahlen, _ und - enthalten.' }); return; }
+      const existing = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(trimmed, req.userId);
+      if (existing) { res.status(409).json({ error: 'Benutzername bereits vergeben.' }); return; }
+      updates.push('username = ?');
+      values.push(trimmed);
+    }
+
+    if (password !== undefined) {
+      if (password.length < 6) { res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen lang sein.' }); return; }
+      const hash = await bcrypt.hash(password, 12);
+      updates.push('password = ?');
+      values.push(hash);
+    }
+
+    if (avatar !== undefined) {
+      updates.push('avatar = ?');
+      values.push(avatar);
+    }
+
+    if (updates.length === 0) { res.status(400).json({ error: 'Keine Änderungen angegeben.' }); return; }
+
+    values.push(req.userId);
+    db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...(values as Parameters<typeof db.prepare>));
+
+    const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId) as UserRow;
+    res.json(toPublicUser(updated));
+  }
+);
+
+// DELETE /users/me — permanently delete own account
+router.delete('/me',
+  authenticate,
+  (req: AuthRequest, res: Response): void => {
+    db.transaction(() => {
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId) as UserRow | undefined;
+      if (user) {
+        // Remove user from all their groups
+        const groupIds: string[] = JSON.parse(user.group_ids);
+        for (const groupId of groupIds) {
+          const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId) as { member_ids: string } | undefined;
+          if (group) {
+            const newMembers = (JSON.parse(group.member_ids) as string[]).filter(id => id !== req.userId);
+            db.prepare('UPDATE groups SET member_ids = ? WHERE id = ?').run(JSON.stringify(newMembers), groupId);
+          }
+        }
+        // Remove user from friends' friend lists
+        const friendIds: string[] = JSON.parse(user.friend_ids);
+        for (const friendId of friendIds) {
+          const friend = db.prepare('SELECT * FROM users WHERE id = ?').get(friendId) as UserRow | undefined;
+          if (friend) {
+            const theirFriends = (JSON.parse(friend.friend_ids) as string[]).filter(id => id !== req.userId);
+            db.prepare('UPDATE users SET friend_ids = ? WHERE id = ?').run(JSON.stringify(theirFriends), friendId);
+          }
+        }
+      }
+      db.prepare('DELETE FROM friend_requests WHERE from_user_id = ? OR to_user_id = ?').run(req.userId, req.userId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
+    })();
+    res.json({ ok: true });
   }
 );
 

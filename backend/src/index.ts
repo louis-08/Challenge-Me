@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import crypto from 'crypto';
+import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -83,6 +84,13 @@ app.use((req: Request, res: Response, next: NextFunction): void => {
 app.get('/csrf', (_req: Request, res: Response) => {
   res.json({ csrfToken: generateCsrfToken() });
 });
+
+// --- Static files (uploaded avatars) ---
+// Override helmet's same-origin CORP so the frontend (different port) can load images
+app.use('/uploads', (_req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // --- Routes ---
 app.use('/auth', authRouter);

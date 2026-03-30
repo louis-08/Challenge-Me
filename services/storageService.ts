@@ -99,6 +99,31 @@ export const updateUserMilestones = async (_userId: string, milestones: Mileston
   });
 };
 
+export const uploadAvatar = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const res = await fetch(`${API_BASE}/users/me/avatar`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'x-csrf-token': getCsrfToken() },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return (data as { avatar: string }).avatar;
+};
+
+export const updateProfile = async (data: { username?: string; password?: string; avatar?: string }): Promise<User> => {
+  return apiFetch<User>('/users/me/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  });
+};
+
+export const deleteAccount = async (): Promise<void> => {
+  await apiFetch('/users/me', { method: 'DELETE' });
+};
+
 // --- Friends ---
 
 export interface FriendRequest {
