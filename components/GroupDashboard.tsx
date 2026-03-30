@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Hourglass, Search, UserPlus, ChevronLeft, ChevronRight, Trash2, Download, MessageCircle, Send } from 'lucide-react';
+import { Users, Plus, Trophy, Crown, Hash, Swords, Clock, Upload, Star, Check, X, Search, UserPlus, ChevronLeft, ChevronRight, Trash2, Download, Send, Pencil, Save, Camera, Hourglass } from 'lucide-react';
 import { Group, User, GroupChallenge, MediaItem } from '../types';
 import { MediaLightbox, LightboxItem } from './MediaLightbox';
+import { Avatar } from './Avatar';
 import {
   createGroup,
   joinGroup,
   getUserGroups,
   getGroup,
+  updateGroup,
+  uploadGroupAvatar,
   deleteGroup,
   submitChallengeProof,
   transitionToVoting,
@@ -48,6 +51,16 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   const [friendSuccess, setFriendSuccess] = useState('');
   const [friendToRemove, setFriendToRemove] = useState<User | null>(null);
   const [isRemovingFriend, setIsRemovingFriend] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupDescription, setEditGroupDescription] = useState('');
+  const [editMemberIds, setEditMemberIds] = useState<string[]>([]);
+  const [groupAvatarPreview, setGroupAvatarPreview] = useState('');
+  const [newGroupAvatarFile, setNewGroupAvatarFile] = useState<File | null>(null);
+  const [isSavingGroup, setIsSavingGroup] = useState(false);
+  const groupAvatarInputRef = useRef<HTMLInputElement>(null);
 
   // Submission State
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -63,6 +76,11 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const selectedGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) ?? null : null;
+  const groupMembers = editMemberIds
+    .map(memberId => usersCache[memberId] || friends.find(friend => friend.id === memberId) || (memberId === currentUser.id ? currentUser : undefined))
+    .filter((member): member is User => !!member);
+  const availableFriendsToAdd = friends.filter(friend => !editMemberIds.includes(friend.id));
 
   const openLightbox = (items: LightboxItem[], startIndex: number) => {
     setLightboxItems(items);
@@ -285,6 +303,68 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
     }
   };
 
+  const openGroupEditor = (group: Group) => {
+    setError(null);
+    setEditGroupName(group.name);
+    setEditGroupDescription(group.description || '');
+    setEditMemberIds(group.memberIds);
+    setGroupAvatarPreview(group.avatar || '');
+    setNewGroupAvatarFile(null);
+    setIsEditGroupOpen(true);
+  };
+
+  const closeGroupEditor = () => {
+    setIsEditGroupOpen(false);
+    setNewGroupAvatarFile(null);
+  };
+
+  const handleGroupAvatarSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewGroupAvatarFile(file);
+    setGroupAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const toggleEditableMember = (memberId: string) => {
+    setEditMemberIds(prev => {
+      if (prev.includes(memberId)) {
+        if (prev.length === 1) return prev;
+        return prev.filter(id => id !== memberId);
+      }
+      return [...prev, memberId];
+    });
+  };
+
+  const handleSaveGroup = async () => {
+    if (!selectedGroupId) return;
+    setIsSavingGroup(true);
+    setError(null);
+
+    try {
+      let updated = await updateGroup(selectedGroupId, {
+        name: editGroupName,
+        description: editGroupDescription,
+        memberIds: editMemberIds
+      });
+
+      if (newGroupAvatarFile) {
+        updated = await uploadGroupAvatar(selectedGroupId, newGroupAvatarFile);
+      }
+
+      await refreshGroup(updated);
+      if (!updated.memberIds.includes(currentUser.id)) {
+        setSelectedGroupId(null);
+        setScreen('list');
+      }
+      closeGroupEditor();
+      onUpdate();
+    } catch (e: any) {
+      setError(e.message || 'Gruppe konnte nicht gespeichert werden.');
+    } finally {
+      setIsSavingGroup(false);
+    }
+  };
+
   const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result as string);
@@ -362,17 +442,16 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
 
   const handleDeleteGroup = async () => {
     if (!selectedGroupId) return;
-    if (!confirm('Gruppe wirklich löschen? Das kann nicht rückgängig gemacht werden.')) return;
     try {
+      setIsDeletingGroup(true);
       await deleteGroup(selectedGroupId);
       setGroups(prev => prev.filter(g => g.id !== selectedGroupId));
       setSelectedGroupId(null);
       setScreen('list');
+      setGroupToDelete(null);
     } catch (e) { console.error(e); }
+    finally { setIsDeletingGroup(false); }
   };
-
-  const getGroupInitials = (name: string) =>
-    name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const handleDownloadAllMedia = async (challenge: GroupChallenge) => {
     let index = 1;
@@ -448,9 +527,13 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                 onClick={() => { setSelectedGroupId(group.id); setScreen('group'); }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors text-left"
               >
-                <div className="w-11 h-11 rounded-full bg-indigo-100 flex-shrink-0 flex items-center justify-center text-sm font-black text-indigo-600">
-                  {getGroupInitials(group.name)}
-                </div>
+                <Avatar
+                  src={group.avatar}
+                  name={group.name}
+                  alt={group.name}
+                  className="w-11 h-11 border border-slate-200 bg-indigo-100 flex-shrink-0"
+                  fallbackClassName="bg-indigo-100 text-indigo-600"
+                />
                 <div className="flex-grow min-w-0">
                   <p className="font-semibold text-slate-800 text-sm">{group.name}</p>
                   <p className="text-xs text-slate-400 mt-0.5 truncate">
@@ -471,7 +554,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   );
 
   const renderGroupDetail = () => {
-    const group = groups.find(g => g.id === selectedGroupId);
+    const group = selectedGroup;
     if (!group) { setScreen('list'); return null; }
 
     return (
@@ -482,16 +565,27 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3 flex-grow min-w-0">
-            <div className="w-10 h-10 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-sm font-black text-white">
-              {getGroupInitials(group.name)}
-            </div>
+            <Avatar
+              src={group.avatar}
+              name={group.name}
+              alt={group.name}
+              className="w-10 h-10 border border-slate-200 bg-indigo-100 flex-shrink-0"
+              fallbackClassName="bg-indigo-600 text-white"
+            />
             <div className="min-w-0">
               <p className="font-bold text-slate-900 text-base leading-tight">{group.name}</p>
               <p className="text-xs text-slate-400">{group.memberIds.length} Mitglieder · Code: <span className="font-mono">{group.code}</span></p>
             </div>
           </div>
           <button
-            onClick={handleDeleteGroup}
+            onClick={() => openGroupEditor(group)}
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0"
+            title="Gruppe bearbeiten"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setGroupToDelete(group)}
             className="p-2 hover:bg-rose-50 rounded-xl text-slate-400 hover:text-rose-500 transition-colors flex-shrink-0"
             title="Gruppe löschen"
           >
@@ -625,7 +719,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
               return (
                 <div key={memberId} className="flex items-center justify-between bg-white rounded-xl p-2.5 border border-amber-50">
                   <div className="flex items-center gap-2.5">
-                    <img src={member?.avatar} className="w-8 h-8 rounded-full bg-slate-100" />
+                    <Avatar src={member?.avatar} name={member?.username} alt={member?.username} className="w-8 h-8 flex-shrink-0" />
                     <span className="font-medium text-sm text-slate-700">{member?.username}</span>
                   </div>
                   {submitted ? (
@@ -790,7 +884,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
             )}
             <div className="p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <img src={user?.avatar} className="w-9 h-9 rounded-full border border-slate-100 flex-shrink-0" />
+                <Avatar src={user?.avatar} name={user?.username} alt={user?.username} className="w-9 h-9 border border-slate-100 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="font-bold text-slate-800 text-sm">{user?.username}</p>
                   {sub.comment && <p className="text-slate-500 text-xs truncate">{sub.comment}</p>}
@@ -821,7 +915,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                     const timeStr = `${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}`;
                     return (
                       <div key={ci} className="flex items-start gap-2">
-                        <img src={commenter?.avatar} className="w-6 h-6 rounded-full border border-slate-100 flex-shrink-0 mt-0.5" />
+                        <Avatar src={commenter?.avatar} name={commenter?.username} alt={commenter?.username} className="w-6 h-6 border border-slate-100 flex-shrink-0 mt-0.5" />
                         <div className="min-w-0">
                           <div className="flex items-baseline gap-1.5">
                             <span className="text-xs font-bold text-slate-700">{commenter?.username}</span>
@@ -951,7 +1045,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           <div className="space-y-2">
             {friendRequests.map(req => (
               <div key={req.id} className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                <img src={req.avatar} className="w-10 h-10 rounded-full border border-slate-200" />
+                <Avatar src={req.avatar} name={req.username} alt={req.username} className="w-10 h-10 border border-slate-200 flex-shrink-0" />
                 <span className="font-semibold text-slate-700 text-sm flex-grow">{req.username}</span>
                 <button
                   onClick={() => handleAcceptRequest(req.id)}
@@ -978,7 +1072,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           ? <p className="text-slate-400 text-sm">Noch keine Freunde hinzugefügt.</p>
           : friends.map(f => (
             <div key={f.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
-              <img src={f.avatar} className="w-10 h-10 rounded-full border border-slate-200" />
+              <Avatar src={f.avatar} name={f.username} alt={f.username} className="w-10 h-10 border border-slate-200 flex-shrink-0" />
               <span className="font-semibold text-slate-700 text-sm flex-grow">{f.username}</span>
               <button
                 onClick={() => setFriendToRemove(f)}
@@ -1004,6 +1098,166 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
       {screen === 'join-group'   && renderJoinGroup()}
       {screen === 'friends'      && renderFriends()}
 
+      {isEditGroupOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 p-4">
+          <div className="min-h-full flex items-start justify-center py-6">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Gruppe bearbeiten</h3>
+                <p className="text-sm text-slate-500 mt-1">Name, Beschreibung, Mitglieder und Profilbild anpassen.</p>
+              </div>
+              <button
+                onClick={closeGroupEditor}
+                disabled={isSavingGroup}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400"
+                title="Schließen"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => groupAvatarInputRef.current?.click()}
+                  className="relative"
+                  disabled={isSavingGroup}
+                >
+                  <Avatar
+                    src={groupAvatarPreview}
+                    name={editGroupName}
+                    alt="Gruppenbild"
+                    className="w-20 h-20 border-2 border-slate-200 bg-indigo-100"
+                    fallbackClassName="bg-indigo-600 text-white"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center border-4 border-white">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                </button>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800">Profilbild</p>
+                  <p className="text-sm text-slate-500">Tippe auf das Bild, um ein neues Gruppenfoto hochzuladen.</p>
+                </div>
+                <input
+                  ref={groupAvatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleGroupAvatarSelection}
+                  disabled={isSavingGroup}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Name</label>
+                <input
+                  type="text"
+                  value={editGroupName}
+                  onChange={e => setEditGroupName(e.target.value)}
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  maxLength={80}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Beschreibung</label>
+                <textarea
+                  value={editGroupDescription}
+                  onChange={e => setEditGroupDescription(e.target.value)}
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm min-h-[110px] resize-none"
+                  maxLength={500}
+                  placeholder="Worum geht es in eurer Gruppe?"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Mitglieder</label>
+                  <span className="text-xs text-slate-400">{editMemberIds.length} ausgewählt</span>
+                </div>
+                <div className="space-y-2">
+                  {groupMembers.map(member => {
+                    const isSelf = member.id === currentUser.id;
+                    const canRemove = editMemberIds.length > 1;
+                    return (
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                        <Avatar src={member.avatar} name={member.username} alt={member.username} className="w-10 h-10 border border-slate-200 flex-shrink-0" />
+                        <div className="flex-grow min-w-0">
+                          <p className="font-semibold text-slate-800 text-sm">{member.username}</p>
+                          <p className="text-xs text-slate-400">{isSelf ? 'Du' : 'Mitglied'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleEditableMember(member.id)}
+                          disabled={!canRemove || isSavingGroup}
+                          className="px-3 py-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+                        >
+                          Entfernen
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Freunde hinzufügen</label>
+                  <span className="text-xs text-slate-400">{availableFriendsToAdd.length} verfügbar</span>
+                </div>
+                {availableFriendsToAdd.length === 0 ? (
+                  <div className="p-3 rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
+                    Keine weiteren Freunde verfügbar.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {availableFriendsToAdd.map(friend => (
+                      <div key={friend.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white">
+                        <Avatar src={friend.avatar} name={friend.username} alt={friend.username} className="w-10 h-10 border border-slate-200 flex-shrink-0" />
+                        <span className="font-semibold text-slate-700 text-sm flex-grow">{friend.username}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleEditableMember(friend.id)}
+                          disabled={isSavingGroup}
+                          className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-medium"
+                        >
+                          Hinzufügen
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {error && <p className="text-sm text-rose-500">{error}</p>}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeGroupEditor}
+                  disabled={isSavingGroup}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveGroup}
+                  disabled={isSavingGroup || !editGroupName.trim()}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSavingGroup ? 'Speichert...' : 'Speichern'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+          </div>
+      )}
+
       {friendToRemove && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
@@ -1025,6 +1279,33 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                 className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
               >
                 {isRemovingFriend ? 'Entfernen...' : 'Entfernen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {groupToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Gruppe löschen?</h3>
+            <p className="text-sm text-slate-600 mb-6">
+              Die Gruppe {groupToDelete.name} wird dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setGroupToDelete(null)}
+                disabled={isDeletingGroup}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleDeleteGroup}
+                disabled={isDeletingGroup}
+                className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
+              >
+                {isDeletingGroup ? 'Löschen...' : 'Löschen'}
               </button>
             </div>
           </div>

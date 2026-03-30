@@ -230,7 +230,6 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🎉</div>
           <h2 className="text-2xl font-black text-slate-900">Party Modus</h2>
-          <p className="text-slate-500 text-sm mt-1">Gebt alle Spielernamen ein.</p>
         </div>
 
         <form onSubmit={addPlayer} className="flex gap-2 mb-4">

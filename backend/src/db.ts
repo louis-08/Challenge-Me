@@ -42,10 +42,16 @@ db.exec(`
     code             TEXT UNIQUE NOT NULL,
     member_ids       TEXT NOT NULL DEFAULT '[]',
     description      TEXT NOT NULL DEFAULT '',
+    avatar           TEXT NOT NULL DEFAULT '',
     active_challenge TEXT,
     past_challenges  TEXT NOT NULL DEFAULT '[]',
     created_at       TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
+
+const groupColumns = db.prepare("PRAGMA table_info(groups)").all() as Array<{ name: string }>;
+if (!groupColumns.some(column => column.name === 'avatar')) {
+  db.exec("ALTER TABLE groups ADD COLUMN avatar TEXT NOT NULL DEFAULT ''");
+}
 
 export default db;

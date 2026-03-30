@@ -2,92 +2,38 @@ import { Milestone, MilestoneCategory, Difficulty } from './types';
 
 export const INITIAL_MILESTONES: Milestone[] = [
   {
-    id: '1',
-    title: 'Blind Taste Test',
-    description: 'Wer erkennt die meisten Getränke mit verbundenen Augen? Loser trinkt den Rest.',
-    category: MilestoneCategory.FUNandCringe,
-    difficulty: Difficulty.EASY,
+    id: 'default-1',
+    title: 'Der Fremde Bestie',
+    description: 'Geht in ein belebtes Cafe oder eine Bar. Sucht euch eine komplett fremde Person aus und uberzeugt sie, dass ihr schon seit Jahren beste Freunde seid, die sich zufallig wiedergetroffen haben. Umarmung, Insider-Witze erfinden, alles muss stimmen. Haltet es mindestens 3 Minuten durch.',
+    category: MilestoneCategory.SOCIAL,
+    difficulty: Difficulty.INSANE,
     proofType: 'VIDEO',
     completed: false
   },
   {
-    id: '2',
-    title: 'Fremdsprachen-Bestellung',
-    description: 'Bestelle in einem Restaurant in einer Sprache, die du kaum kannst. Video Beweis!',
+    id: 'default-2',
+    title: 'Trinken',
+    description: 'Wer erkennt die meisten Getranke mit verbundenen Augen?',
+    category: MilestoneCategory.DRINKING,
+    difficulty: Difficulty.MEDIUM,
+    proofType: 'VIDEO',
+    completed: false
+  },
+  {
+    id: 'default-3',
+    title: 'Der unerwartete Lebensratgeber',
+    description: 'Gehe in ein Geschaft wie Supermarkt oder Baumarkt, sprich eine fremde Person an und gib ihr ungefragt einen total abstrusen, aber ernst gemeinten Lebensrat zu einem beliebigen Produkt, das die Person gerade ansieht. Beobachte die Reaktion.',
     category: MilestoneCategory.SOCIAL,
     difficulty: Difficulty.HARD,
     proofType: 'VIDEO',
     completed: false
   },
   {
-    id: '3',
-    title: 'Der 5€ Outfit Contest',
-    description: 'Stell das beste Outfit zusammen, das maximal 5€ im Second Hand Laden kostet.',
-    category: MilestoneCategory.FUNandCringe,
-    difficulty: Difficulty.MEDIUM,
-    proofType: 'PHOTO',
-    completed: false
-  },
-  {
-    id: '4',
-    title: 'Eisbaden',
-    description: 'Geh in ein kaltes Gewässer (oder kalte Dusche) für min. 1 Minute. Wir wollen Gesichter sehen!',
+    id: 'default-4',
+    title: 'Baumfluesterer',
+    description: 'Umarme einen Baum eine Minute lang. Erzaehle ihm von deinem Tag oder deinem letzten Erlebnis.',
     category: MilestoneCategory.OUTDOOR,
-    difficulty: Difficulty.INSANE,
-    proofType: 'VIDEO',
-    completed: false
-  },
-  {
-    id: '5',
-    title: 'Public Dancing',
-    description: 'Tanze 30 Sekunden sichtbar an einem öffentlichen Ort.',
-    category: MilestoneCategory.SOCIAL,
-    difficulty: Difficulty.INSANE,
-    proofType: 'VIDEO',
-    completed: false
-  },
-  {
-    id: '6',
-    title: 'Kartenhaus Battle',
-    description: 'Wer baut das höchste Kartenhaus in 5 Minuten? Foto vom Endergebnis.',
-    category: MilestoneCategory.SKILLSandCREATIVITY,
-    difficulty: Difficulty.MEDIUM,
-    proofType: 'PHOTO',
-    completed: false
-  },
-  {
-    id: '7',
-    title: 'Lehrer-Imitation',
-    description: 'Imitiere einen Lehrer/Prof vor der Gruppe – die anderen raten wen.',
-    category: MilestoneCategory.SCHOOL,
     difficulty: Difficulty.EASY,
-    proofType: 'VIDEO',
-    completed: false
-  },
-  {
-    id: '8',
-    title: 'Uno mit Hausdurchsuchung',
-    description: 'Verlierst du eine Runde, muss du ein peinliches Foto aus deiner Galerie zeigen.',
-    category: MilestoneCategory.PARTY,
-    difficulty: Difficulty.MEDIUM,
-    proofType: 'PHOTO',
-    completed: false
-  },
-  {
-    id: '9',
-    title: 'Socken-Jonglage',
-    description: 'Wer jongliert am längsten mit 3 zusammengerollten Socken?',
-    category: MilestoneCategory.INDOOR,
-    difficulty: Difficulty.EASY,
-    proofType: 'VIDEO',
-    completed: false
-  },
-  {
-    id: '10',
-    title: 'Wahrheit oder Trink',
-    description: 'Klassiker: Wahrheit beantworten oder trinken. Wer lügt, trinkt doppelt.',
-    category: MilestoneCategory.DRINKING,
-    difficulty: Difficulty.MEDIUM,
     proofType: 'VIDEO',
     completed: false
   }
@@ -106,10 +52,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const DIFFICULTY_COLORS: Record<string, string> = {
-  ["EASY"]: '#4ade80',    // green
-  ["MEDIUM"]: '#facc15',  // yellow
-  ["HARD"]: '#f87171',    // red
-  ["INSANE"]: '#c026d3',  // purple
+  ["EASY"]: '#4ade80',
+  ["MEDIUM"]: '#facc15',
+  ["HARD"]: '#f87171',
+  ["INSANE"]: '#c026d3',
 };
 
 export const CATEGORY_EMOJIS: Record<string, string> = {

@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { X, Camera, User as UserIcon, Lock, Trash2, Check, AlertTriangle, Upload } from 'lucide-react';
 import { User } from '../types';
-import { updateProfile, deleteAccount, logoutUser, uploadAvatar, API_BASE } from '../services/storageService';
+import { updateProfile, deleteAccount, logoutUser, uploadAvatar } from '../services/storageService';
+import { Avatar } from './Avatar';
+import { resolveAvatarUrl } from './avatarUtils';
 
 interface Props {
   user: User;
@@ -34,9 +36,6 @@ export const ProfileModal: React.FC<Props> = ({ user, onClose, onUpdated, onDele
   const [deleteConfirm, setDeleteConfirm] = useState('');
 
   const reset = () => { setError(''); setSuccess(''); };
-
-  const resolveAvatar = (url: string) =>
-    url.startsWith('/uploads/') ? `${API_BASE}${url}` : url;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,7 +123,7 @@ export const ProfileModal: React.FC<Props> = ({ user, onClose, onUpdated, onDele
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <img src={resolveAvatar(user.avatar)} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100 object-cover" />
+            <Avatar src={user.avatar} name={user.username} alt="Avatar" className="w-10 h-10 border-2 border-indigo-100" />
             <div>
               <p className="font-black text-slate-900">{user.username}</p>
               <p className="text-xs text-slate-400">Profil bearbeiten</p>
@@ -173,7 +172,7 @@ export const ProfileModal: React.FC<Props> = ({ user, onClose, onUpdated, onDele
                 className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-indigo-100 cursor-pointer group"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <img src={resolveAvatar(preview)} alt="Vorschau" className="w-full h-full object-contain bg-slate-50" />
+                <img src={resolveAvatarUrl(preview)} alt="Vorschau" className="w-full h-full object-cover bg-slate-50" />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <Camera className="w-7 h-7 text-white" />
                 </div>

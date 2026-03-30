@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Search, CheckCircle2, PartyPopper, ChevronDown, ChevronUp, Shuffle, User as UserIcon } from 'lucide-react';
 import { Milestone, MilestoneCategory, User, Difficulty, Group } from './types';
 import { MilestoneCard } from './components/MilestoneCard';
@@ -6,10 +6,8 @@ import { AuthScreen } from './components/AuthScreen';
 import { GroupDashboard } from './components/GroupDashboard';
 import { LocalMode } from './components/LocalMode';
 import { ProfileModal } from './components/ProfileModal';
-import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends, API_BASE } from './services/storageService';
-
-const resolveAvatar = (url: string) =>
-  url.startsWith('/uploads/') ? `${API_BASE}${url}` : url;
+import { Avatar } from './components/Avatar';
+import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends } from './services/storageService';
 import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from './constants';
 import { generateCreativeMilestones } from './services/geminiService';
 
@@ -217,7 +215,7 @@ const ChallengeSetupModal: React.FC<ChallengeSetupProps> = ({ milestone, onClose
                            onClick={() => setSelectedFriendId(f.id)}
                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${selectedFriendId === f.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-slate-50 border border-transparent'}`}
                          >
-                            <img src={f.avatar} alt={f.username} className="w-8 h-8 rounded-full bg-white border border-slate-200" />
+                            <Avatar src={f.avatar} name={f.username} alt={f.username} className="w-8 h-8 border border-slate-200 bg-white flex-shrink-0" />
                             <span className={`text-sm font-medium ${selectedFriendId === f.id ? 'text-indigo-700' : 'text-slate-700'}`}>{f.username}</span>
                             {selectedFriendId === f.id && <CheckCircle2 className="w-4 h-4 text-indigo-500 ml-auto" />}
                          </div>
@@ -252,10 +250,33 @@ const ChallengeSetupModal: React.FC<ChallengeSetupProps> = ({ milestone, onClose
 
 
 function App() {
+  const FEED_CACHE_KEY = 'challenge-me.feed-cache.v1';
+  const loadCachedFeed = (): Milestone[] => {
+    try {
+      const raw = localStorage.getItem(FEED_CACHE_KEY);
+      if (!raw) return INITIAL_MILESTONES;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_MILESTONES;
+      return parsed.slice(0, 10);
+    } catch {
+      return INITIAL_MILESTONES;
+    }
+  };
+
+  const persistFeed = (milestones: Milestone[]) => {
+    try {
+      localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(milestones.slice(0, 10)));
+    } catch {
+      // Ignore storage failures and keep the UI usable.
+    }
+  };
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [guestMode, setGuestMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const mobileProfileMenuRef = useRef<HTMLDivElement | null>(null);
+  const desktopProfileMenuRef = useRef<HTMLDivElement | null>(null);
 
   // App State
   const [activeTab, setActiveTab] = useState<'feed' | 'groups' | 'local'>('feed');
@@ -270,11 +291,12 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   
   // Feed Data
-  const [feedMilestones, setFeedMilestones] = useState<Milestone[]>(INITIAL_MILESTONES);
+  const [feedMilestones, setFeedMilestones] = useState<Milestone[]>(() => loadCachedFeed());
 
   // Challenge Interaction
   const [selectedChallenge, setSelectedChallenge] = useState<Milestone | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // Manual Creation State
   const [manualTitle, setManualTitle] = useState('');
@@ -289,6 +311,12 @@ function App() {
       setIsLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (feedMilestones.length > 0) {
+      persistFeed(feedMilestones);
+    }
+  }, [feedMilestones]);
 
   useEffect(() => {
     if (currentUser) {
@@ -307,8 +335,24 @@ function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedInsideMobile = mobileProfileMenuRef.current?.contains(target);
+      const clickedInsideDesktop = desktopProfileMenuRef.current?.contains(target);
+
+      if (!clickedInsideMobile && !clickedInsideDesktop) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleLogout = () => {
     logoutUser().catch(() => {});
+    setShowProfileMenu(false);
     setCurrentUser(null);
   };
 
@@ -319,7 +363,7 @@ function App() {
       const contextParts = [genContext, genTeamMode === 'TEAM' ? 'Im Team zu erledigen' : 'Solo zu erledigen'].filter(Boolean);
       const newFeed = await generateCreativeMilestones(genCategory, genDifficulty, contextParts.join(', '), 10);
       if (newFeed.length > 0) {
-        setFeedMilestones(newFeed);
+        setFeedMilestones(newFeed.slice(0, 10));
       }
     } catch (e) {
       console.error("Failed to generate feed");
@@ -371,11 +415,11 @@ function App() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md">
+        <div className="px-3 sm:px-4">
 
           {/* Mobile: Logo-Zeile */}
-          <div className="relative flex sm:hidden items-center justify-between h-12 border-b border-slate-100">
+          <div className="relative flex sm:hidden items-start justify-between pt-3">
             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-200 transform -rotate-3">
                 <Zap className="w-5 h-5 text-white" />
@@ -384,14 +428,36 @@ function App() {
                 CHALLENGE<span className="text-indigo-600">ME</span>
               </h1>
             </div>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center">
               {currentUser ? (
-                <>
-                  <img src={resolveAvatar(currentUser.avatar)} alt="Avatar" onClick={() => setShowProfileModal(true)} className="w-7 h-7 rounded-full border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
-                  <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors">
-                    <LogOut className="w-4 h-4" />
+                <div className="relative" ref={mobileProfileMenuRef}>
+                  <button
+                    onClick={() => setShowProfileMenu(prev => !prev)}
+                    className="block rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
+                    aria-label="Persönliches Menü öffnen"
+                  >
+                    <Avatar src={currentUser.avatar} name={currentUser.username} alt="Avatar" className="w-11 h-11 border-2 border-white shadow-md cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
                   </button>
-                </>
+                  {showProfileMenu && (
+                    <div className="absolute right-0 top-14 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setShowProfileModal(true);
+                        }}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                      >
+                        Profil bearbeiten
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button onClick={() => setGuestMode(false)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all">
                   Anmelden
@@ -401,7 +467,7 @@ function App() {
           </div>
 
           {/* Mobile: Tab-Zeile */}
-          <div className="flex sm:hidden items-center justify-center h-10">
+          <div className="flex sm:hidden items-center justify-center pt-5 pb-4">
             <div className="flex bg-slate-100 p-1 rounded-lg">
               <button onClick={() => setActiveTab('feed')} className={`px-4 py-1 rounded-md text-sm font-bold transition-all ${activeTab === 'feed' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Feed</button>
               <button onClick={() => setActiveTab('groups')} className={`px-4 py-1 rounded-md text-sm font-bold transition-all ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Community</button>
@@ -410,7 +476,7 @@ function App() {
           </div>
 
           {/* Desktop: einzeilig */}
-          <div className="hidden sm:flex items-center justify-between h-16">
+          <div className="hidden sm:flex items-center justify-between h-20">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-200 transform -rotate-3">
                 <Zap className="w-5 h-5 text-white" />
@@ -418,22 +484,42 @@ function App() {
               <h1 className="text-xl font-black italic tracking-tighter text-slate-900">
                 CHALLENGE<span className="text-indigo-600">ME</span>
               </h1>
-              <div className="flex ml-6 bg-slate-100 p-1 rounded-lg">
+              <div className="flex ml-12 bg-slate-100 p-1 rounded-lg">
                 <button onClick={() => setActiveTab('feed')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'feed' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Feed</button>
                 <button onClick={() => setActiveTab('groups')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'groups' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Community</button>
                 <button onClick={() => setActiveTab('local')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'local' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Lokal</button>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center">
               {currentUser ? (
-                <>
-                  <div className="flex items-center gap-2 mr-2">
-                    <img src={resolveAvatar(currentUser.avatar)} alt="Avatar" onClick={() => setShowProfileModal(true)} className="w-8 h-8 rounded-full border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
-                  </div>
-                  <button onClick={handleLogout} className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors">
-                    <LogOut className="w-5 h-5" />
+                <div className="relative" ref={desktopProfileMenuRef}>
+                  <button
+                    onClick={() => setShowProfileMenu(prev => !prev)}
+                    className="block rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
+                    aria-label="Persönliches Menü öffnen"
+                  >
+                    <Avatar src={currentUser.avatar} name={currentUser.username} alt="Avatar" className="w-12 h-12 border-2 border-white shadow-md cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
                   </button>
-                </>
+                  {showProfileMenu && (
+                    <div className="absolute right-0 top-14 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setShowProfileModal(true);
+                        }}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                      >
+                        Profil bearbeiten
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button onClick={() => setGuestMode(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all">
                   Anmelden

@@ -80,6 +80,7 @@ export interface Group {
   code: string; 
   memberIds: string[];
   description: string;
+  avatar?: string;
   activeChallenge?: GroupChallenge;
   pastChallenges: GroupChallenge[];
 }

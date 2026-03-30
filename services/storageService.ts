@@ -194,6 +194,30 @@ export const getGroup = async (groupId: string): Promise<Group> => {
   return apiFetch<Group>(`/groups/${groupId}`);
 };
 
+export const updateGroup = async (
+  groupId: string,
+  data: { name?: string; description?: string; memberIds?: string[]; avatar?: string }
+): Promise<Group> => {
+  return apiFetch<Group>(`/groups/${groupId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  });
+};
+
+export const uploadGroupAvatar = async (groupId: string, file: File): Promise<Group> => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const res = await fetch(`${API_BASE}/groups/${groupId}/avatar`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'x-csrf-token': getCsrfToken() },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data as Group;
+};
+
 // --- Challenge Logic ---
 
 export const startGroupChallenge = async (groupId: string, title: string, description: string, durationMinutes: number): Promise<Group> => {

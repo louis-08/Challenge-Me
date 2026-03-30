@@ -17,6 +17,14 @@ export function removeClient(res: Response): void {
   if (idx !== -1) clients.splice(idx, 1);
 }
 
+export function updateUserGroupSubscriptions(userId: string, groupIds: string[]): void {
+  for (const client of clients) {
+    if (client.userId === userId) {
+      client.groupIds = new Set(groupIds);
+    }
+  }
+}
+
 export function notifyGroup(groupId: string, data: unknown): void {
   const msg = `data: ${JSON.stringify(data)}\n\n`;
   for (const client of clients) {

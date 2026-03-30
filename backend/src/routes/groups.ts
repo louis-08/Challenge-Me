@@ -1,12 +1,35 @@
 import { Router, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import db from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { Group, GroupChallenge, ChallengeSubmission, MediaItem } from '../types';
-import { addClient, removeClient, notifyGroup } from '../sseClients';
+import { addClient, removeClient, notifyGroup, updateUserGroupSubscriptions } from '../sseClients';
 
 const router = Router();
+
+const GROUP_UPLOADS_DIR = path.join(__dirname, '../../uploads/groups');
+fs.mkdirSync(GROUP_UPLOADS_DIR, { recursive: true });
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, GROUP_UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `${uuidv4()}${ext}`);
+  }
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Nur Bilddateien erlaubt.'));
+  }
+});
 
 interface GroupRow {
   id: string;
@@ -14,6 +37,7 @@ interface GroupRow {
   code: string;
   member_ids: string;
   description: string;
+  avatar: string;
   active_challenge: string | null;
   past_challenges: string;
 }
@@ -31,6 +55,7 @@ function toGroup(row: GroupRow): Group {
     code: row.code,
     memberIds: JSON.parse(row.member_ids),
     description: row.description,
+    avatar: row.avatar || undefined,
     activeChallenge: row.active_challenge ? JSON.parse(row.active_challenge) : undefined,
     pastChallenges: JSON.parse(row.past_challenges)
   };
@@ -38,6 +63,12 @@ function toGroup(row: GroupRow): Group {
 
 function generateGroupCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function syncUserGroupSubscriptions(userId: string): void {
+  const user = db.prepare('SELECT group_ids FROM users WHERE id = ?').get(userId) as UserRow | undefined;
+  const groupIds = user ? JSON.parse(user.group_ids) as string[] : [];
+  updateUserGroupSubscriptions(userId, groupIds);
 }
 
 // GET /groups/stream — SSE real-time updates
@@ -106,6 +137,10 @@ router.post('/',
     });
     createGroup();
 
+    for (const userId of allMembers) {
+      syncUserGroupSubscriptions(userId);
+    }
+
     const row = db.prepare('SELECT * FROM groups WHERE id = ?').get(id) as GroupRow;
     res.status(201).json(toGroup(row));
   }
@@ -145,8 +180,163 @@ router.post('/join',
     });
     joinGroup();
 
+    for (const userId of memberIds) {
+      syncUserGroupSubscriptions(userId);
+    }
+
     const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
     notifyGroup(row.id, { groupId: row.id }); // notify existing members
+    res.json(toGroup(updated));
+  }
+);
+
+// PATCH /groups/:id — update group metadata and members
+router.patch('/:id',
+  authenticate,
+  param('id').isUUID(),
+  (req: AuthRequest, res: Response): void => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.status(400).json({ error: errors.array()[0].msg }); return; }
+
+    const { name, description, memberIds, avatar } = req.body as {
+      name?: string;
+      description?: string;
+      memberIds?: string[];
+      avatar?: string;
+    };
+
+    const row = db.prepare('SELECT * FROM groups WHERE id = ?').get(req.params.id) as GroupRow | undefined;
+    if (!row) { res.status(404).json({ error: 'Gruppe nicht gefunden.' }); return; }
+
+    const currentMemberIds: string[] = JSON.parse(row.member_ids);
+    if (!currentMemberIds.includes(req.userId!)) {
+      res.status(403).json({ error: 'Kein Zugriff.' });
+      return;
+    }
+
+    let nextName = row.name;
+    let nextDescription = row.description;
+    let nextAvatar = row.avatar || '';
+    let nextMemberIds = [...currentMemberIds];
+
+    if (name !== undefined) {
+      const trimmed = name.trim();
+      if (trimmed.length < 1 || trimmed.length > 80) {
+        res.status(400).json({ error: 'Der Gruppenname muss 1–80 Zeichen lang sein.' });
+        return;
+      }
+      nextName = trimmed;
+    }
+
+    if (description !== undefined) {
+      const trimmed = description.trim();
+      if (trimmed.length > 500) {
+        res.status(400).json({ error: 'Die Beschreibung darf maximal 500 Zeichen lang sein.' });
+        return;
+      }
+      nextDescription = trimmed;
+    }
+
+    if (avatar !== undefined) {
+      nextAvatar = avatar;
+    }
+
+    if (memberIds !== undefined) {
+      if (!Array.isArray(memberIds)) {
+        res.status(400).json({ error: 'Ungültige Mitgliederliste.' });
+        return;
+      }
+
+      const uniqueMemberIds = [...new Set(memberIds.filter((id): id is string => typeof id === 'string'))];
+      if (uniqueMemberIds.length === 0) {
+        res.status(400).json({ error: 'Eine Gruppe muss mindestens ein Mitglied haben.' });
+        return;
+      }
+
+      const requester = db.prepare('SELECT friend_ids FROM users WHERE id = ?').get(req.userId) as UserRow | undefined;
+      if (!requester) { res.status(404).json({ error: 'Benutzer nicht gefunden.' }); return; }
+
+      const friendIds: string[] = JSON.parse(requester.friend_ids);
+      const addedMembers = uniqueMemberIds.filter(id => !currentMemberIds.includes(id) && id !== req.userId);
+      const invalidAddedMembers = addedMembers.filter(id => !friendIds.includes(id));
+      if (invalidAddedMembers.length > 0) {
+        res.status(400).json({ error: 'Du kannst nur Freunde zur Gruppe hinzufügen.' });
+        return;
+      }
+
+      const existingUsers = db.prepare(
+        `SELECT id FROM users WHERE id IN (${uniqueMemberIds.map(() => '?').join(',')})`
+      ).all(...uniqueMemberIds) as Array<{ id: string }>;
+      if (existingUsers.length !== uniqueMemberIds.length) {
+        res.status(400).json({ error: 'Mindestens ein Mitglied wurde nicht gefunden.' });
+        return;
+      }
+
+      nextMemberIds = uniqueMemberIds;
+    }
+
+    const removedMemberIds = currentMemberIds.filter(id => !nextMemberIds.includes(id));
+    const addedMemberIds = nextMemberIds.filter(id => !currentMemberIds.includes(id));
+
+    db.transaction(() => {
+      db.prepare('UPDATE groups SET name = ?, description = ?, avatar = ?, member_ids = ? WHERE id = ?')
+        .run(nextName, nextDescription, nextAvatar, JSON.stringify(nextMemberIds), row.id);
+
+      for (const userId of removedMemberIds) {
+        const user = db.prepare('SELECT group_ids FROM users WHERE id = ?').get(userId) as UserRow | undefined;
+        if (!user) continue;
+        const groupIds = (JSON.parse(user.group_ids) as string[]).filter(groupId => groupId !== row.id);
+        db.prepare('UPDATE users SET group_ids = ? WHERE id = ?').run(JSON.stringify(groupIds), userId);
+      }
+
+      for (const userId of addedMemberIds) {
+        const user = db.prepare('SELECT group_ids FROM users WHERE id = ?').get(userId) as UserRow | undefined;
+        if (!user) continue;
+        const groupIds = JSON.parse(user.group_ids) as string[];
+        if (!groupIds.includes(row.id)) {
+          groupIds.push(row.id);
+          db.prepare('UPDATE users SET group_ids = ? WHERE id = ?').run(JSON.stringify(groupIds), userId);
+        }
+      }
+    })();
+
+    for (const userId of [...new Set([...currentMemberIds, ...nextMemberIds])]) {
+      syncUserGroupSubscriptions(userId);
+    }
+
+    notifyGroup(row.id, { groupId: row.id });
+    const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    res.json(toGroup(updated));
+  }
+);
+
+// POST /groups/:id/avatar — upload a group avatar
+router.post('/:id/avatar',
+  authenticate,
+  param('id').isUUID(),
+  avatarUpload.single('avatar'),
+  (req: AuthRequest, res: Response): void => {
+    if (!req.file) { res.status(400).json({ error: 'Kein Bild hochgeladen.' }); return; }
+
+    const row = db.prepare('SELECT * FROM groups WHERE id = ?').get(req.params.id) as GroupRow | undefined;
+    if (!row) { res.status(404).json({ error: 'Gruppe nicht gefunden.' }); return; }
+
+    const memberIds: string[] = JSON.parse(row.member_ids);
+    if (!memberIds.includes(req.userId!)) {
+      res.status(403).json({ error: 'Kein Zugriff.' });
+      return;
+    }
+
+    if (row.avatar?.startsWith('/uploads/groups/')) {
+      const oldPath = path.join(__dirname, '../..', row.avatar);
+      fs.unlink(oldPath, () => {});
+    }
+
+    const avatarUrl = `/uploads/groups/${req.file.filename}`;
+    db.prepare('UPDATE groups SET avatar = ? WHERE id = ?').run(avatarUrl, row.id);
+
+    const updated = db.prepare('SELECT * FROM groups WHERE id = ?').get(row.id) as GroupRow;
+    notifyGroup(row.id, { groupId: row.id });
     res.json(toGroup(updated));
   }
 );
@@ -212,6 +402,10 @@ router.delete('/:id',
       }
       db.prepare('DELETE FROM groups WHERE id = ?').run(row.id);
     })();
+
+    for (const userId of memberIds) {
+      syncUserGroupSubscriptions(userId);
+    }
 
     res.json({ ok: true });
   }
