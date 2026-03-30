@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Dice5, Search, CheckCircle2, PartyPopper, ChevronDown, ChevronUp, User as UserIcon } from 'lucide-react';
+import { Plus, Trophy, Map, LayoutGrid, Zap, LogOut, Users, Ghost, UserPlus, Swords, X, Sparkles, Clock, Loader2, Search, CheckCircle2, PartyPopper, ChevronDown, ChevronUp, Shuffle, User as UserIcon } from 'lucide-react';
 import { Milestone, MilestoneCategory, User, Difficulty, Group } from './types';
 import { MilestoneCard } from './components/MilestoneCard';
 import { AuthScreen } from './components/AuthScreen';
@@ -255,6 +255,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [guestMode, setGuestMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // App State
   const [activeTab, setActiveTab] = useState<'feed' | 'groups' | 'local'>('feed');
@@ -294,6 +295,17 @@ function App() {
       updateUserMilestones(currentUser.id, currentUser.milestones);
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 320);
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleLogout = () => {
     logoutUser().catch(() => {});
@@ -338,6 +350,10 @@ function App() {
     setManualDesc('');
     setManualTeamMode('SOLO');
     setIsManualOpen(false);
+  };
+
+  const handleScrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-900 text-white">Lade Challenge Me...</div>;
@@ -452,22 +468,16 @@ function App() {
         {activeTab === 'feed' && !guestMode && (
           <>
             {/* BIG FEED GENERATOR HEADER */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl p-8 mb-10 shadow-xl shadow-indigo-200 text-white">
+            <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl p-5 sm:p-8 mb-10 shadow-xl shadow-indigo-200 text-white">
                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-purple-500/30 rounded-full blur-3xl"></div>
 
                <div className="relative z-10">
                  <div className="flex justify-between items-start mb-6">
-                    <h2 className="text-3xl font-black tracking-tight">
+                    <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
                       Challenge Generator
                     </h2>
-                    <button
-                      onClick={() => setIsManualOpen(!isManualOpen)}
-                      className="hidden md:flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all backdrop-blur-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Manuell erstellen
-                    </button>
+                    
                  </div>
 
                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
@@ -551,13 +561,24 @@ function App() {
             </div>
 
             {/* Small toggle button below generator */}
-            <div className="flex justify-center -mt-6 mb-6">
+            <div className="flex flex-col sm:flex-row justify-center items-stretch gap-3 -mt-6 mb-6">
               <button
                 onClick={() => setIsManualOpen(o => !o)}
-                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-2 rounded-full text-sm font-bold shadow-sm transition-all"
+                className="flex w-full sm:w-auto sm:min-w-[240px] items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 px-4 py-3 rounded-full text-sm font-black shadow-sm transition-all"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4" strokeWidth={2.75} />
                 Eigene Challenge erstellen
+              </button>
+              <button
+                onClick={() => {
+                  const pick = feedMilestones[Math.floor(Math.random() * feedMilestones.length)];
+                  if (pick) setSelectedChallenge(pick);
+                }}
+                disabled={feedMilestones.length === 0}
+                className="flex w-full sm:w-auto sm:min-w-[240px] items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-900 px-4 py-3 rounded-full text-sm font-black shadow-lg shadow-amber-900/20 transition-all active:scale-95 disabled:opacity-40"
+              >
+                <Shuffle className="w-4 h-4" strokeWidth={2.75} />
+                Zufällig auswählen
               </button>
             </div>
 
@@ -711,6 +732,20 @@ function App() {
           setActiveTab('groups'); // Switch to community to see the new battle
         }}
       />}
+
+      {activeTab === 'feed' && !guestMode && (
+        <button
+          type="button"
+          onClick={handleScrollToTop}
+          aria-label="Zurück nach oben"
+          className={`fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-300 transition-all duration-300 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 ${
+            showScrollTop ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-4 opacity-0 pointer-events-none'
+          }`}
+        >
+          <ChevronUp className="h-4 w-4" />
+          Nach oben
+        </button>
+      )}
       
     </div>
   );
