@@ -95,7 +95,7 @@ router.post('/generate', aiLimiter, [
         messages: [
           {
             role: "system",
-            content: `Du bist ein frecher Challenge-Generator für Freundesgruppen. Antworte IMMER als JSON-Objekt mit einem "challenges"-Array. Jede Challenge hat: title (string), description (string), category (einer aus: ${allowedCategories.join(", ")}), difficulty (EASY|MEDIUM|HARD|INSANE), proofType (PHOTO|VIDEO).`
+            content: `Du bist ein frecher Challenge-Generator für Freundesgruppen. Antworte IMMER als JSON-Objekt mit einem "challenges"-Array. Jede Challenge hat: title (string), description (string), category (einer aus: ${allowedCategories.join(", ")}), difficulty (EASY|MEDIUM|HARD|INSANE).`
           },
           { role: "user", content: prompt }
         ]
@@ -118,10 +118,9 @@ router.post('/generate', aiLimiter, [
                 title: { type: Type.STRING, description: "Titel der Challenge" },
                 description: { type: Type.STRING, description: "Was genau muss getan werden?" },
                 category: { type: Type.STRING, description: `Kategorie aus Liste: ${allowedCategories.join(", ")}` },
-                difficulty: { type: Type.STRING, enum: ["EASY", "MEDIUM", "HARD", "INSANE"] },
-                proofType: { type: Type.STRING, enum: ["PHOTO", "VIDEO"], description: "Bester Beweistyp" }
+                difficulty: { type: Type.STRING, enum: ["EASY", "MEDIUM", "HARD", "INSANE"] }
               },
-              required: ["title", "description", "category", "difficulty", "proofType"]
+              required: ["title", "description", "category", "difficulty"]
             }
           }
         }
@@ -136,7 +135,6 @@ router.post('/generate', aiLimiter, [
       description: item.description,
       category: item.category || (category === 'MIX' ? 'FUN' : category),
       difficulty: item.difficulty || 'MEDIUM',
-      proofType: item.proofType || 'PHOTO',
       completed: false,
       isAiGenerated: true
     }));

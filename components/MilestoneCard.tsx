@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Zap, Camera, Video } from 'lucide-react';
+import { Sparkles, Zap } from 'lucide-react';
 import { Milestone, Difficulty } from '../types';
 import { CATEGORY_COLORS, DIFFICULTY_COLORS, CATEGORY_EMOJIS } from '../constants';
 
@@ -65,11 +65,6 @@ export const MilestoneCard: React.FC<MilestoneCardProps> = ({
           {milestone.description}
         </p>
 
-        {/* Proof type */}
-        <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-slate-400 border-t border-slate-50 pt-3">
-          {milestone.proofType === 'VIDEO' ? <Video className="w-3.5 h-3.5" /> : <Camera className="w-3.5 h-3.5" />}
-          <span>{milestone.proofType === 'VIDEO' ? 'Video Beweis' : 'Foto Beweis'}</span>
-        </div>
       </div>
 
       {/* Action Button */}

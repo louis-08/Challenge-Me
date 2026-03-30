@@ -117,7 +117,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({ isOpen, onClose,
                       <h4 className="font-semibold text-slate-800">{milestone.title}</h4>
                       <p className="text-sm text-slate-600 mt-1">{milestone.description}</p>
                       <div className="mt-2 text-xs text-indigo-500 font-medium">
-                        {milestone.difficulty} • {milestone.proofType}
+                        {milestone.difficulty}
                       </div>
                     </div>
                     <button
