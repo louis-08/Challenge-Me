@@ -5,7 +5,11 @@ import { MilestoneCard } from './components/MilestoneCard';
 import { AuthScreen } from './components/AuthScreen';
 import { GroupDashboard } from './components/GroupDashboard';
 import { LocalMode } from './components/LocalMode';
-import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends } from './services/storageService';
+import { ProfileModal } from './components/ProfileModal';
+import { getCurrentSessionUser, logoutUser, updateUserMilestones, getUserGroups, startGroupChallenge, createGroup, getUserFriends, API_BASE } from './services/storageService';
+
+const resolveAvatar = (url: string) =>
+  url.startsWith('/uploads/') ? `${API_BASE}${url}` : url;
 import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from './constants';
 import { generateCreativeMilestones } from './services/geminiService';
 
@@ -269,6 +273,7 @@ function App() {
 
   // Challenge Interaction
   const [selectedChallenge, setSelectedChallenge] = useState<Milestone | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Manual Creation State
   const [manualTitle, setManualTitle] = useState('');
@@ -366,7 +371,7 @@ function App() {
             <div className="ml-auto flex items-center gap-2">
               {currentUser ? (
                 <>
-                  <img src={currentUser.avatar} alt="Avatar" className="w-7 h-7 rounded-full border border-slate-200" />
+                  <img src={resolveAvatar(currentUser.avatar)} alt="Avatar" onClick={() => setShowProfileModal(true)} className="w-7 h-7 rounded-full border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
                   <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors">
                     <LogOut className="w-4 h-4" />
                   </button>
@@ -407,7 +412,7 @@ function App() {
               {currentUser ? (
                 <>
                   <div className="flex items-center gap-2 mr-2">
-                    <img src={currentUser.avatar} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200" />
+                    <img src={resolveAvatar(currentUser.avatar)} alt="Avatar" onClick={() => setShowProfileModal(true)} className="w-8 h-8 rounded-full border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
                   </div>
                   <button onClick={handleLogout} className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500 transition-colors">
                     <LogOut className="w-5 h-5" />
@@ -688,6 +693,15 @@ function App() {
 
       {/* Modals */}
       
+      {currentUser && showProfileModal && (
+        <ProfileModal
+          user={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onUpdated={(updated: User) => { setCurrentUser(updated); setShowProfileModal(false); }}
+          onDeleted={() => { setCurrentUser(null); setGuestMode(false); }}
+        />
+      )}
+
       {currentUser && <ChallengeSetupModal
         milestone={selectedChallenge}
         onClose={() => setSelectedChallenge(null)}
