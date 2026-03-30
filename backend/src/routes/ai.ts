@@ -1,10 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
 const API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // Rate limiting for AI endpoints (more restrictive)
 const aiLimiter = rateLimit({
@@ -31,12 +33,10 @@ router.post('/generate', aiLimiter, [
   try {
     const { category, difficulty, additionalInfo, count = 10 } = req.body;
 
-    if (!API_KEY) {
+    if (!API_KEY && !GROQ_API_KEY) {
       res.status(503).json({ error: 'AI-Service nicht verfügbar.' });
       return;
     }
-
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     const allowedCategories = ["FUNandCringe", "SPORT", "SOCIAL", "OUTDOOR", "PARTY", "SKILLSandCREATIVITY", "SCHOOL", "INDOOR", "DRINKING"];
 
@@ -81,29 +81,53 @@ router.post('/generate', aiLimiter, [
       - Sprache: Deutsch, locker und jugendlich
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING, description: "Titel der Challenge" },
-              description: { type: Type.STRING, description: "Was genau muss getan werden?" },
-              category: { type: Type.STRING, description: `Kategorie aus Liste: ${allowedCategories.join(", ")}` },
-              difficulty: { type: Type.STRING, enum: ["EASY", "MEDIUM", "HARD", "INSANE"] },
-              proofType: { type: Type.STRING, enum: ["PHOTO", "VIDEO"], description: "Bester Beweistyp" }
-            },
-            required: ["title", "description", "category", "difficulty", "proofType"]
+    let generatedRaw: unknown[];
+
+    if (GROQ_API_KEY) {
+      const groq = new Groq({ apiKey: GROQ_API_KEY });
+      const completion = await groq.chat.completions.create({
+        model: "openai/gpt-oss-120b",
+        temperature: 1,
+        max_completion_tokens: 8192,
+        top_p: 1,
+        reasoning_effort: "medium",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `Du bist ein frecher Challenge-Generator für Freundesgruppen. Antworte IMMER als JSON-Objekt mit einem "challenges"-Array. Jede Challenge hat: title (string), description (string), category (einer aus: ${allowedCategories.join(", ")}), difficulty (EASY|MEDIUM|HARD|INSANE), proofType (PHOTO|VIDEO).`
+          },
+          { role: "user", content: prompt }
+        ]
+      });
+      const text = completion.choices[0]?.message?.content ?? '{"challenges":[]}';
+      const parsed = JSON.parse(text);
+      generatedRaw = Array.isArray(parsed) ? parsed : (parsed.challenges ?? []);
+    } else {
+      const ai = new GoogleGenAI({ apiKey: API_KEY! });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "Titel der Challenge" },
+                description: { type: Type.STRING, description: "Was genau muss getan werden?" },
+                category: { type: Type.STRING, description: `Kategorie aus Liste: ${allowedCategories.join(", ")}` },
+                difficulty: { type: Type.STRING, enum: ["EASY", "MEDIUM", "HARD", "INSANE"] },
+                proofType: { type: Type.STRING, enum: ["PHOTO", "VIDEO"], description: "Bester Beweistyp" }
+              },
+              required: ["title", "description", "category", "difficulty", "proofType"]
+            }
           }
         }
-      }
-    });
-
-    const generatedRaw = response.text ? JSON.parse(response.text) : [];
+      });
+      generatedRaw = response.text ? JSON.parse(response.text) : [];
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const challenges = generatedRaw.map((item: any) => ({
