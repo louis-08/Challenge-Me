@@ -134,23 +134,23 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
   // ─── Player panel (shown on challenge + result screens) ────────────────────
 
-  const PlayerPanel = () => (
+  const playerPanel = (
     <div className="bg-white border border-slate-200 rounded-2xl mb-6 overflow-hidden">
       <button
         onClick={() => setPlayerPanelOpen(p => !p)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+        className="w-full flex items-start justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 flex-1 mr-2">
           <Users className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-          <span className="text-sm font-bold text-slate-700">
+          <span className="text-sm font-bold text-slate-700 flex-shrink-0">
             {players.length} Spieler
           </span>
-          <div className="flex gap-1 overflow-hidden">
+          <div className="flex flex-wrap gap-1">
             {players.slice(0, 5).map(p => (
-              <span key={p} className="flex-shrink-0 text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{p}</span>
+              <span key={p} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{p}</span>
             ))}
             {players.length > 5 && (
-              <span className="flex-shrink-0 text-xs text-slate-400">+{players.length - 5}</span>
+              <span className="text-xs text-slate-400">+{players.length - 5}</span>
             )}
           </div>
         </div>
@@ -258,7 +258,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
   if (screen === 'challenge') {
     return (
       <div>
-        <PlayerPanel />
+        {playerPanel}
 
         {/* Challenge Generator — identisch mit Feed */}
         <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl p-8 mb-10 shadow-xl shadow-indigo-200 text-white">
@@ -389,7 +389,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
   return (
     <div className="max-w-sm mx-auto py-4 text-center">
-      <PlayerPanel />
+      {playerPanel}
 
       <button
         onClick={() => { setScreen('challenge'); setDisplayName(''); setChosenPlayer(''); }}
