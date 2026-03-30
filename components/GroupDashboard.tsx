@@ -15,6 +15,7 @@ import {
   addSubmissionComment,
   getUserById,
   getUserFriends,
+  removeFriend,
   sendFriendRequest,
   getFriendRequests,
   acceptFriendRequest,
@@ -45,6 +46,8 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [friendSuccess, setFriendSuccess] = useState('');
+  const [friendToRemove, setFriendToRemove] = useState<User | null>(null);
+  const [isRemovingFriend, setIsRemovingFriend] = useState(false);
 
   // Submission State
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -251,6 +254,21 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
       setFriendRequests(prev => prev.filter(r => r.id !== requestId));
     } catch (e: any) {
       setError(e.message || 'Fehler beim Ablehnen');
+    }
+  };
+
+  const handleRemoveFriend = async () => {
+    if (!friendToRemove) return;
+    try {
+      setIsRemovingFriend(true);
+      setError(null);
+      await removeFriend(friendToRemove.id);
+      setFriends(prev => prev.filter(entry => entry.id !== friendToRemove.id));
+      setFriendToRemove(null);
+    } catch (e: any) {
+      setError(e.message || 'Fehler beim Entfernen des Freundes');
+    } finally {
+      setIsRemovingFriend(false);
     }
   };
 
@@ -961,7 +979,14 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           : friends.map(f => (
             <div key={f.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
               <img src={f.avatar} className="w-10 h-10 rounded-full border border-slate-200" />
-              <span className="font-semibold text-slate-700 text-sm">{f.username}</span>
+              <span className="font-semibold text-slate-700 text-sm flex-grow">{f.username}</span>
+              <button
+                onClick={() => setFriendToRemove(f)}
+                className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"
+                title={`${f.username} entfernen`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))
         }
@@ -978,6 +1003,33 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
       {screen === 'create-group' && renderCreateGroup()}
       {screen === 'join-group'   && renderJoinGroup()}
       {screen === 'friends'      && renderFriends()}
+
+      {friendToRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Freund entfernen?</h3>
+            <p className="text-sm text-slate-600 mb-6">
+              {friendToRemove.username} wird aus deiner Freundesliste entfernt.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setFriendToRemove(null)}
+                disabled={isRemovingFriend}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleRemoveFriend}
+                disabled={isRemovingFriend}
+                className="px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
+              >
+                {isRemovingFriend ? 'Entfernen...' : 'Entfernen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lightboxOpen && (
         <MediaLightbox

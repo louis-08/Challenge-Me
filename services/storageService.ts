@@ -162,6 +162,10 @@ export const getUserFriends = async (_userId: string): Promise<User[]> => {
   return apiFetch<User[]>('/users/me/friends');
 };
 
+export const removeFriend = async (friendId: string): Promise<void> => {
+  await apiFetch(`/users/me/friends/${friendId}`, { method: 'DELETE' });
+};
+
 // --- Groups ---
 
 export const createGroup = async (_userId: string, groupName: string, initialMemberIds: string[] = []): Promise<Group> => {

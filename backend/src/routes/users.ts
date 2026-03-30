@@ -195,6 +195,32 @@ router.get('/me/friends',
   }
 );
 
+router.delete('/me/friends/:friendId',
+  authenticate,
+  param('friendId').isUUID(),
+  (req: AuthRequest, res: Response): void => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.status(400).json({ error: errors.array()[0].msg }); return; }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId) as UserRow | undefined;
+    const friend = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.friendId) as UserRow | undefined;
+    if (!user || !friend) { res.status(404).json({ error: 'Benutzer nicht gefunden.' }); return; }
+
+    const myFriends: string[] = JSON.parse(user.friend_ids);
+    if (!myFriends.includes(friend.id)) { res.status(404).json({ error: 'Freundschaft nicht gefunden.' }); return; }
+
+    db.transaction(() => {
+      const updatedMyFriends = myFriends.filter(id => id !== friend.id);
+      db.prepare('UPDATE users SET friend_ids = ? WHERE id = ?').run(JSON.stringify(updatedMyFriends), req.userId);
+
+      const theirFriends = (JSON.parse(friend.friend_ids) as string[]).filter(id => id !== req.userId);
+      db.prepare('UPDATE users SET friend_ids = ? WHERE id = ?').run(JSON.stringify(theirFriends), friend.id);
+    })();
+
+    res.json({ ok: true });
+  }
+);
+
 // POST /users/me/avatar — upload a profile photo
 router.post('/me/avatar',
   authenticate,
