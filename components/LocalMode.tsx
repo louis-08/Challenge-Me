@@ -5,6 +5,120 @@ import { INITIAL_MILESTONES, CATEGORY_EMOJIS } from '../constants';
 import { MilestoneCard } from './MilestoneCard';
 import { generateCreativeMilestones } from '../services/geminiService';
 
+// ─── PlayerDrumPicker ────────────────────────────────────────────────────────
+
+function easeOut(t: number): number {
+  return 1 - Math.pow(1 - t, 4);
+}
+
+function buildLoop(arr: string[], count = 80): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) out.push(arr[i % arr.length]);
+  return out;
+}
+
+interface PlayerDrumPickerProps {
+  players: string[];
+  spinKey: number; // increment to trigger a new spin; Strict-Mode safe
+  onSpinComplete: (winner: string) => void;
+}
+
+const PlayerDrumPicker: React.FC<PlayerDrumPickerProps> = ({ players, spinKey, onSpinComplete }) => {
+  const DRUM_DURATION = 2000;
+  const VISIBLE = 7;
+
+  const animRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const loopRef = useRef<string[]>(buildLoop(players));
+  const finalIndexRef = useRef(0);
+  const winnerRef = useRef('');
+  const onSpinCompleteRef = useRef(onSpinComplete);
+  const playersRef = useRef(players);
+  onSpinCompleteRef.current = onSpinComplete;
+  playersRef.current = players;
+
+  const [offset, setOffset] = useState(0);
+
+  useEffect(() => {
+    if (spinKey === 0) return;
+
+    const currentPlayers = playersRef.current;
+    const loop = buildLoop(currentPlayers, 80);
+    loopRef.current = loop;
+
+    const winnerIdx = Math.floor(Math.random() * currentPlayers.length);
+    winnerRef.current = currentPlayers[winnerIdx];
+
+    const baseOffset = 30 + Math.floor(Math.random() * 10);
+    let landIdx = baseOffset;
+    while (loop[landIdx] !== currentPlayers[winnerIdx]) landIdx++;
+    finalIndexRef.current = landIdx;
+
+    setOffset(0);
+    startTimeRef.current = null;
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+
+    const animate = (ts: number) => {
+      if (!startTimeRef.current) startTimeRef.current = ts;
+      const elapsed = ts - startTimeRef.current;
+      const t = Math.min(elapsed / DRUM_DURATION, 1);
+      setOffset(easeOut(t) * finalIndexRef.current);
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(animate);
+      } else {
+        setOffset(finalIndexRef.current);
+        onSpinCompleteRef.current(winnerRef.current);
+      }
+    };
+
+    animRef.current = requestAnimationFrame(animate);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [spinKey]);
+
+  const half = Math.floor(VISIBLE / 2);
+  const baseIdx = Math.round(offset);
+
+  const rows = [];
+  for (let i = -half; i <= half; i++) {
+    const idx = Math.max(0, Math.min(baseIdx + i, loopRef.current.length - 1));
+    const name = loopRef.current[idx] || '';
+    const pos = i - (offset - baseIdx);
+    const rad = (pos * 28 * Math.PI) / 180;
+    const depth = 220;
+    rows.push({
+      name,
+      y: Math.sin(rad) * depth,
+      z: Math.cos(rad) * depth - depth,
+      opacity: Math.max(0, Math.cos(rad)),
+      scale: Math.max(0.5, Math.cos(rad * 0.5)),
+      fontSize: 18 + (1 - Math.min(Math.abs(pos), 1)) * 22,
+      fontWeight: Math.abs(pos) < 0.5 ? 700 : 300,
+      isCenter: Math.abs(pos) < 0.55,
+    });
+  }
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: 208, display: 'flex', alignItems: 'center', justifyContent: 'center', perspective: '600px', overflow: 'hidden' }}>
+      {/* Selection highlight */}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 56, background: 'linear-gradient(90deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.12) 100%)', borderTop: '1px solid rgba(99,102,241,0.35)', borderBottom: '1px solid rgba(99,102,241,0.35)', borderRadius: 12, zIndex: 1, pointerEvents: 'none' }} />
+      {/* Top fade */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 90, background: 'linear-gradient(to bottom, #f8fafc 0%, transparent 100%)', zIndex: 2, pointerEvents: 'none' }} />
+      {/* Bottom fade */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 90, background: 'linear-gradient(to top, #f8fafc 0%, transparent 100%)', zIndex: 2, pointerEvents: 'none' }} />
+      {/* 3D drum */}
+      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', transformStyle: 'preserve-3d' }}>
+        {rows.map((row, i) => (
+          <div key={i} style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', transform: `translateY(${row.y}px) translateZ(${row.z}px) scale(${row.scale})`, opacity: row.opacity, color: row.isCenter ? '#4f46e5' : '#94a3b8', fontSize: row.fontSize, fontWeight: row.fontWeight, whiteSpace: 'nowrap', pointerEvents: 'none', userSelect: 'none', lineHeight: 1, textShadow: row.isCenter ? '0 0 20px rgba(99,102,241,0.35)' : 'none' }}>
+            {row.name}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 type Screen = 'players' | 'challenge' | 'result';
 
 interface LocalModeProps {
@@ -48,11 +162,8 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
   // Result / Spin
   const [chosenPlayer, setChosenPlayer] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [spinning, setSpinning] = useState(false);
-  const spinRef = useRef<number | null>(null);
-
-  useEffect(() => () => { if (spinRef.current) clearTimeout(spinRef.current); }, []);
+  const [spinKey, setSpinKey] = useState(0);
 
   const baseChallenges = feedChallenges.length > 0 ? feedChallenges : INITIAL_MILESTONES;
   const allChallenges = [...aiChallenges, ...baseChallenges];
@@ -113,49 +224,25 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
   // ─── Spin ──────────────────────────────────────────────────────────────────
 
-  const startSpinAnimation = () => {
-    const winner = players[Math.floor(Math.random() * players.length)];
-    let tick = 0;
-    const total = 30; // Amount of steps
-    let delay = 30;   // Start fast (every 30ms)
-
-    const runSpin = () => {
-      // Pick a random player for the spinning visual
-      setDisplayName(players[Math.floor(Math.random() * players.length)]);
-      tick++;
-      
-      if (tick >= total) {
-        setDisplayName(winner);
-        setChosenPlayer(winner);
-        setSpinning(false);
-      } else {
-        // Slow down increasingly
-        delay = Math.floor(delay * 1.12); // exponential slowdown
-        spinRef.current = window.setTimeout(runSpin, delay) as unknown as number;
-      }
-    };
-    
-    spinRef.current = window.setTimeout(runSpin, delay) as unknown as number;
-  };
-
   const spin = (challenge: Milestone) => {
     if (spinning || players.length < 1) return;
     setSelectedChallenge(challenge);
-    setSpinning(true);
     setChosenPlayer('');
-    setDisplayName('');
+    setSpinning(true);
+    setSpinKey(k => k + 1);
     setScreen('result');
-
-    startSpinAnimation();
   };
 
   const spinAgain = () => {
-    if (!selectedChallenge) return;
-    setDisplayName('');
+    if (!selectedChallenge || spinning) return;
     setChosenPlayer('');
     setSpinning(true);
+    setSpinKey(k => k + 1);
+  };
 
-    startSpinAnimation();
+  const handleSpinComplete = (winner: string) => {
+    setChosenPlayer(winner);
+    setSpinning(false);
   };
 
   // ─── Player panel (shown on challenge + result screens) ────────────────────
@@ -506,7 +593,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
       {playerPanel}
 
       <button
-        onClick={() => { setScreen('challenge'); setDisplayName(''); setChosenPlayer(''); }}
+        onClick={() => { setScreen('challenge'); setChosenPlayer(''); }}
         className="flex items-center gap-1 text-slate-500 hover:text-slate-800 mb-8 text-sm"
       >
         <ChevronLeft className="w-4 h-4" /> Andere Challenge
@@ -514,34 +601,25 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
 
       {/* Challenge banner */}
       {selectedChallenge && (
-        <div className="bg-slate-100 rounded-2xl p-4 mb-8 text-left">
+        <div className="bg-slate-100 rounded-2xl p-4 mb-6 text-left">
           <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Challenge</p>
           <p className="font-bold text-slate-800">{CATEGORY_EMOJIS[catKey]} {selectedChallenge.title}</p>
           <p className="text-sm text-slate-500 mt-0.5">{selectedChallenge.description}</p>
         </div>
       )}
 
-      {/* Spin circle */}
-      <div className="relative mb-6">
-        <div className={`w-48 h-48 rounded-full mx-auto flex items-center justify-center border-8 transition-all duration-100 ${spinning ? 'border-indigo-400 bg-indigo-50 scale-105' : chosenPlayer ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-          {displayName ? (
-            <p className={`text-2xl font-black px-4 text-center leading-tight break-words ${spinning ? 'text-indigo-600' : 'text-amber-700'}`}>
-              {displayName}
-            </p>
-          ) : (
-            <p className="text-slate-300 text-sm font-medium">Dreht...</p>
-          )}
+      {/* Drum picker */}
+      <div className="relative mb-2">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
+          <PlayerDrumPicker
+            players={players}
+            spinKey={spinKey}
+            onSpinComplete={handleSpinComplete}
+          />
         </div>
-        {!spinning && chosenPlayer && (
-          <div className="absolute -top-2 right-12 text-3xl animate-bounce">🏆</div>
-        )}
       </div>
 
-      {!spinning && chosenPlayer && (
-        <p className="text-slate-500 text-sm mb-8">muss die Challenge machen!</p>
-      )}
-
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 mt-6">
         <button
           onClick={spinAgain}
           disabled={spinning}
@@ -551,7 +629,7 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
           {spinning ? 'Dreht...' : 'Nochmal spinnen'}
         </button>
         <button
-          onClick={() => { setScreen('challenge'); setDisplayName(''); setChosenPlayer(''); }}
+          onClick={() => { setScreen('challenge'); setChosenPlayer(''); }}
           className="w-full py-3 text-slate-600 hover:text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-2 text-sm"
         >
           <Swords className="w-4 h-4" /> Neue Challenge wählen

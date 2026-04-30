@@ -86,11 +86,11 @@ router.post('/generate', aiLimiter, [
     if (GROQ_API_KEY) {
       const groq = new Groq({ apiKey: GROQ_API_KEY });
       const completion = await groq.chat.completions.create({
-        model: "openai/gpt-oss-120b",
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
         temperature: 1,
         max_completion_tokens: 8192,
         top_p: 1,
-        reasoning_effort: "medium",
+//        reasoning_effort: "medium",
         response_format: { type: "json_object" },
         messages: [
           {
