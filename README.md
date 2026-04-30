@@ -1,1 +1,2 @@
 Challenge Me is an web app where you can challenge your friends in AI generated Challenges. 
+We added a lot of improvements.
