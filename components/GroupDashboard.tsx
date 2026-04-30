@@ -838,7 +838,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                 placeholder="Kommentar (optional)"
                 value={proofComment}
                 onChange={e => setProofComment(e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-[16px]"
               />
               <button
                 onClick={handleSubmitProof}
@@ -985,7 +985,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                   value={commentText}
                   onChange={e => setCommentTexts(prev => ({ ...prev, [commentKey]: e.target.value }))}
                   onKeyDown={e => { if (e.key === 'Enter' && commentText.trim()) handleAddComment(); }}
-                  className="flex-grow p-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="flex-grow p-2 text-[16px] border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   disabled={commentLoading === commentKey}
                 />
                 <button
@@ -1022,7 +1022,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           placeholder="Gruppenname"
           value={newGroupName}
           onChange={e => setNewGroupName(e.target.value)}
-          className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+          className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-[16px]"
           required
         />
         <button type="submit" disabled={loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50">
@@ -1077,7 +1077,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
               placeholder="Benutzername..."
               value={friendSearch}
               onChange={e => setFriendSearch(e.target.value)}
-              className="w-full pl-9 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full pl-9 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-[16px]"
               required
             />
           </div>
@@ -1256,7 +1256,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                   type="text"
                   value={editGroupName}
                   onChange={e => setEditGroupName(e.target.value)}
-                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-[16px]"
                   maxLength={80}
                 />
               </div>
@@ -1266,7 +1266,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
                 <textarea
                   value={editGroupDescription}
                   onChange={e => setEditGroupDescription(e.target.value)}
-                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm min-h-[110px] resize-none"
+                  className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-[16px] min-h-[110px] resize-none"
                   maxLength={500}
                   placeholder="Worum geht es in eurer Gruppe?"
                 />
