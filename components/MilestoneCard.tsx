@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sparkles, Zap } from 'lucide-react';
 import { Milestone, Difficulty } from '../types';
-import { CATEGORY_COLORS, DIFFICULTY_COLORS, CATEGORY_EMOJIS } from '../constants';
+import { CATEGORY_COLORS, DIFFICULTY_COLORS, CATEGORY_EMOJIS, getCategoryLabel } from '../constants';
 
 interface MilestoneCardProps {
   milestone: Milestone;
@@ -16,6 +16,7 @@ export const MilestoneCard: React.FC<MilestoneCardProps> = ({
   const catColor = CATEGORY_COLORS[milestone.category] || '#64748b';
   const diffColor = DIFFICULTY_COLORS[milestone.difficulty || Difficulty.MEDIUM] || '#facc15';
   const catEmoji = CATEGORY_EMOJIS[milestone.category] || '📌';
+  const catLabel = getCategoryLabel(milestone.category);
 
   return (
     <div className="group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden">
@@ -34,7 +35,7 @@ export const MilestoneCard: React.FC<MilestoneCardProps> = ({
               className="text-xs font-bold uppercase tracking-wider"
               style={{ color: catColor }}
             >
-              {milestone.category}
+              {catLabel}
             </span>
           </div>
           <div className="flex items-center gap-2">

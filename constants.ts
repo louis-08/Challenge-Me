@@ -1,4 +1,4 @@
-import { Milestone, Difficulty } from './types';
+import { Milestone, Difficulty, MilestoneCategory } from './types';
 
 export const INITIAL_MILESTONES: Milestone[] = [
   {
@@ -49,6 +49,30 @@ export const CATEGORY_COLORS: Record<string, string> = {
   ["SCHOOL"]: '#3b82f6',
   ["INDOOR"]: '#64748b',
   ["DRINKING"]: '#22c55e',
+};
+
+export const CATEGORY_LABELS: Record<string, string> = {
+  ["FUNandCringe"]: MilestoneCategory.FUNandCringe,
+  ["SPORT"]: MilestoneCategory.SPORT,
+  ["SOCIAL"]: MilestoneCategory.SOCIAL,
+  ["OUTDOOR"]: MilestoneCategory.OUTDOOR,
+  ["PARTY"]: MilestoneCategory.PARTY,
+  ["SKILLSandCREATIVITY"]: MilestoneCategory.SKILLSandCREATIVITY,
+  ["SCHOOL"]: MilestoneCategory.SCHOOL,
+  ["INDOOR"]: MilestoneCategory.INDOOR,
+  ["DRINKING"]: MilestoneCategory.DRINKING,
+};
+
+export const getCategoryLabel = (category: string): string => {
+  if (category in MilestoneCategory) {
+    return MilestoneCategory[category as keyof typeof MilestoneCategory];
+  }
+
+  if (Object.values(MilestoneCategory).includes(category as MilestoneCategory)) {
+    return category;
+  }
+
+  return CATEGORY_LABELS[category] || category;
 };
 
 export const DIFFICULTY_COLORS: Record<string, string> = {
