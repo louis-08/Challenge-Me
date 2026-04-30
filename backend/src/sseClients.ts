@@ -1,5 +1,11 @@
 import { Response } from 'express';
 
+interface SseEnvelope {
+  type: string;
+  payload?: unknown;
+  createdAt: string;
+}
+
 interface SseClient {
   userId: string;
   groupIds: Set<string>;
@@ -34,8 +40,8 @@ export function notifyGroup(groupId: string, data: unknown): void {
   }
 }
 
-export function notifyUser(userId: string, data: unknown): void {
-  const msg = `data: ${JSON.stringify(data)}\n\n`;
+export function notifyUser(userId: string, event: SseEnvelope): void {
+  const msg = `data: ${JSON.stringify(event)}\n\n`;
   for (const client of clients) {
     if (client.userId === userId) {
       try { client.res.write(msg); } catch { /* ignore broken pipe */ }

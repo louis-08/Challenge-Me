@@ -47,11 +47,60 @@ db.exec(`
     past_challenges  TEXT NOT NULL DEFAULT '[]',
     created_at       TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS friend_requests (
+    id            TEXT PRIMARY KEY,
+    from_user_id  TEXT NOT NULL,
+    to_user_id    TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'PENDING',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    type        TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    body        TEXT NOT NULL,
+    payload     TEXT NOT NULL DEFAULT '{}',
+    is_read     INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
-const groupColumns = db.prepare("PRAGMA table_info(groups)").all() as Array<{ name: string }>;
-if (!groupColumns.some(column => column.name === 'avatar')) {
+function hasColumn(table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return rows.some((r) => r.name === column);
+}
+
+// Backward-compatible migrations for already initialized databases.
+if (!hasColumn('groups', 'avatar')) {
   db.exec("ALTER TABLE groups ADD COLUMN avatar TEXT NOT NULL DEFAULT ''");
 }
+
+if (!hasColumn('users', 'friend_ids')) {
+  db.exec(`ALTER TABLE users ADD COLUMN friend_ids TEXT NOT NULL DEFAULT '[]'`);
+}
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_friend_requests_to_user ON friend_requests(to_user_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_friend_requests_from_user ON friend_requests(from_user_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_friend_requests_status ON friend_requests(status)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)');
+
 
 export default db;

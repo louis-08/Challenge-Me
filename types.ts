@@ -41,6 +41,27 @@ export interface User {
   avatar?: string;
 }
 
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  createdAt: string;
+  updatedAt: string;
+  otherUser?: User;
+}
+
 export type ChallengeStatus = 'ACTIVE' | 'VOTING' | 'COMPLETED';
 
 export interface MediaItem {
