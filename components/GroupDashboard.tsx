@@ -1023,7 +1023,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           value={newGroupName}
           onChange={e => setNewGroupName(e.target.value)}
           className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-          required autoFocus
+          required
         />
         <button type="submit" disabled={loading} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50">
           {loading ? 'Erstelle...' : 'Gruppe erstellen'}
@@ -1051,7 +1051,7 @@ export const GroupDashboard: React.FC<GroupDashboardProps> = ({ currentUser, onU
           value={joinCode}
           onChange={e => setJoinCode(e.target.value)}
           className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none uppercase text-center font-mono text-xl tracking-widest"
-          required autoFocus
+          required
         />
         {error && <p className="text-rose-500 text-sm text-center">{error}</p>}
         <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50">
