@@ -28,14 +28,6 @@ db.exec(`
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
-  CREATE TABLE IF NOT EXISTS friend_requests (
-    id          TEXT PRIMARY KEY,
-    from_user_id TEXT NOT NULL REFERENCES users(id),
-    to_user_id   TEXT NOT NULL REFERENCES users(id),
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(from_user_id, to_user_id)
-  );
-
   CREATE TABLE IF NOT EXISTS groups (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL,
@@ -94,6 +86,14 @@ if (!hasColumn('groups', 'avatar')) {
 
 if (!hasColumn('users', 'friend_ids')) {
   db.exec(`ALTER TABLE users ADD COLUMN friend_ids TEXT NOT NULL DEFAULT '[]'`);
+}
+
+if (!hasColumn('friend_requests', 'status')) {
+  db.exec(`ALTER TABLE friend_requests ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'`);
+}
+
+if (!hasColumn('friend_requests', 'updated_at')) {
+  db.exec(`ALTER TABLE friend_requests ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`);
 }
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_friend_requests_to_user ON friend_requests(to_user_id)');

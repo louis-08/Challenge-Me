@@ -751,56 +751,8 @@ function App() {
         <div className="px-3 sm:px-4">
 
           {/* Mobile: Logo-Zeile */}
-          <div className="relative flex sm:hidden items-start justify-between pt-3">
-            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-200 transform -rotate-3">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-black italic tracking-tighter text-slate-900">
-                CHALLENGE<span className="text-indigo-600">ME</span>
-              </h1>
-            </div>
-            <div className="ml-auto flex items-center">
-              {currentUser ? (
-                <div className="relative" ref={mobileProfileMenuRef}>
-                  <button
-                    onClick={() => setShowProfileMenu(prev => !prev)}
-                    className="block rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
-                    aria-label="Persönliches Menü öffnen"
-                  >
-                    <Avatar src={currentUser.avatar} name={currentUser.username} alt="Avatar" className="w-11 h-11 border-2 border-white shadow-md cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
-                  </button>
-                  {showProfileMenu && (
-                    <div className="absolute right-0 top-14 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          setShowProfileModal(true);
-                        }}
-                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-                      >
-                        Profil bearbeiten
-                      </button>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <button onClick={() => setGuestMode(false)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all">
-                  Anmelden
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Mobile: Notification Bell */}
-          {currentUser && (
-            <div className="flex sm:hidden items-center justify-end pb-1">
+          <div className="relative flex sm:hidden items-center justify-between pt-3">
+            {currentUser ? (
               <div className="relative">
                 <button
                   onClick={handleOpenNotifications}
@@ -816,7 +768,7 @@ function App() {
                 </button>
 
                 {notificationPanelOpen && (
-                  <div className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-2xl z-50">
+                  <div className="absolute left-0 mt-2 w-80 max-h-[70vh] overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-2xl z-50">
                     <div className="p-3 border-b border-slate-100 flex items-center justify-between">
                       <p className="font-bold text-slate-800 text-sm">Benachrichtigungen</p>
                       <button
@@ -892,8 +844,54 @@ function App() {
                   </div>
                 )}
               </div>
+            ) : <div className="w-9" />}
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-200 transform -rotate-3">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-xl font-black italic tracking-tighter text-slate-900">
+                CHALLENGE<span className="text-indigo-600">ME</span>
+              </h1>
             </div>
-          )}
+            <div className="flex items-center">
+              {currentUser ? (
+                <div className="relative" ref={mobileProfileMenuRef}>
+                  <button
+                    onClick={() => setShowProfileMenu(prev => !prev)}
+                    className="block rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
+                    aria-label="Persönliches Menü öffnen"
+                  >
+                    <Avatar src={currentUser.avatar} name={currentUser.username} alt="Avatar" className="w-11 h-11 border-2 border-white shadow-md cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
+                  </button>
+                  {showProfileMenu && (
+                    <div className="absolute right-0 top-14 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setShowProfileModal(true);
+                        }}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                      >
+                        Profil bearbeiten
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button onClick={() => setGuestMode(false)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all">
+                  Anmelden
+                </button>
+              )}
+            </div>
+          </div>
+
+          
 
           {/* Mobile: Tab-Zeile */}
           <div className="flex sm:hidden items-center justify-center pt-2 pb-4">

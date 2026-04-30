@@ -325,7 +325,6 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
             onChange={e => setNameInput(e.target.value)}
             maxLength={20}
             className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            autoFocus
           />
           <button
             type="submit"
