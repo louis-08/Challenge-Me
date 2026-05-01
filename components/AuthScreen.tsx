@@ -85,6 +85,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onPlayLocal }
               </div>
             )}
 
+            {!isLogin && (
+              <p className="text-xs text-slate-500 text-center">
+                Hiermit akzeptierst du die{' '}
+                <a
+                  href="/AGB.md"
+                  download="AGB_ChallengeMe.md"
+                  className="text-indigo-600 font-medium hover:underline"
+                >
+                  AGBs
+                </a>
+                .
+              </p>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -140,6 +154,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onPlayLocal }
               </button>
             </div>
           )}
+          
         </div>
         
       </div>
