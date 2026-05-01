@@ -351,13 +351,13 @@ export const LocalMode: React.FC<LocalModeProps> = ({ feedChallenges }) => {
           </div>
         ) : (
           <div className="text-center py-8 text-slate-300">
-            <p className="text-sm">Mindestens 2 Spieler werden benötigt.</p>
+            <p className="text-sm">Mindestens 1 Spieler wird benötigt.</p>
           </div>
         )}
 
         <button
           onClick={() => setScreen('challenge')}
-          disabled={players.length < 2}
+          disabled={players.length < 1}
           className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-black rounded-xl transition-all text-base shadow-lg shadow-indigo-200"
         >
           Weiter → Challenge wählen
