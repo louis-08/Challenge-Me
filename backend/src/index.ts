@@ -22,8 +22,8 @@ app.set('trust proxy', 1);
 // --- Security middleware ---
 app.use(helmet());
 app.use(cors({
-  origin: FRONTEND_URL,
-  credentials: true, // required for httpOnly cookie auth
+  origin: true,
+  credentials: true,
   exposedHeaders: ['X-CSRF-Token']
 }));
 

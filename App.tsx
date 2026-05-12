@@ -917,7 +917,98 @@ function App() {
                 <button onClick={() => setActiveTab('local')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'local' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Lokal</button>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
+              {currentUser && (
+                <div className="relative">
+                  <button
+                    onClick={handleOpenNotifications}
+                    className="relative p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors"
+                    title="Benachrichtigungen"
+                  >
+                    <Bell className="w-5 h-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationPanelOpen && (
+                    <div className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-2xl z-50">
+                      <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <p className="font-bold text-slate-800 text-sm">Benachrichtigungen</p>
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" /> Alle gelesen
+                        </button>
+                      </div>
+
+                      <div className="p-2 space-y-1.5">
+                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Push Einstellungen</p>
+                          {!pushSupported && (
+                            <p className="text-xs text-slate-500">Dieser Browser unterstützt Web Push nicht.</p>
+                          )}
+                          {pushSupported && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-slate-600">
+                                Status: <span className="font-semibold text-slate-800">{pushSubscribed ? 'Aktiv' : 'Inaktiv'}</span>
+                              </p>
+                              {pushServerAvailable === false && (
+                                <p className="text-xs text-amber-700">Push Server ist nicht konfiguriert (fehlende VAPID Keys).</p>
+                              )}
+                              {browserPermission !== 'granted' && pushServerAvailable !== false && (
+                                <button
+                                  onClick={handleEnableBrowserNotifications}
+                                  className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg"
+                                  disabled={pushBusy}
+                                >
+                                  Aktivieren
+                                </button>
+                              )}
+                              {browserPermission === 'granted' && pushServerAvailable !== false && (
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={handleResubscribePush}
+                                    className="text-xs bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                                    disabled={pushBusy}
+                                  >
+                                    Neu abonnieren
+                                  </button>
+                                  <button
+                                    onClick={handleUnsubscribePush}
+                                    className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                                    disabled={pushBusy || !pushSubscribed}
+                                  >
+                                    Abmelden
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {notifications.length === 0 ? (
+                          <p className="text-sm text-slate-400 text-center py-6">Noch keine Benachrichtigungen.</p>
+                        ) : (
+                          notifications.map((n) => (
+                            <button
+                              key={n.id}
+                              onClick={() => handleNotificationClick(n)}
+                              className={`w-full text-left p-3 rounded-xl border transition-colors ${n.isRead ? 'bg-white border-slate-100' : 'bg-amber-50 border-amber-200'}`}
+                            >
+                              <p className="text-sm font-semibold text-slate-800">{n.title}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {currentUser ? (
                 <div className="relative" ref={desktopProfileMenuRef}>
                   <button
