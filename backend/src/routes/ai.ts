@@ -86,7 +86,7 @@ router.post('/generate', aiLimiter, [
     if (GROQ_API_KEY) {
       const groq = new Groq({ apiKey: GROQ_API_KEY });
       const completion = await groq.chat.completions.create({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        model: "llama-3.3-70b-versatile",
         temperature: 1,
         max_completion_tokens: 8192,
         top_p: 1,
