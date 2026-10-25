@@ -13,7 +13,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/genai": "^1.43.0",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^11.9.1",
+    "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

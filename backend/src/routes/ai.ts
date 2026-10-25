@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import { GoogleGenAI, Type } from '@google/genai';
-import Groq from 'groq-sdk';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
-const API_KEY = process.env.GEMINI_API_KEY;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = 'openai/gpt-6-luna';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Rate limiting for AI endpoints (more restrictive)
 const aiLimiter = rateLimit({
@@ -16,6 +15,11 @@ const aiLimiter = rateLimit({
 });
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const parseJsonContent = (raw: string) => {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  return JSON.parse(cleaned);
+};
 
 // POST /ai/generate
 router.post('/generate', aiLimiter, [
@@ -33,7 +37,7 @@ router.post('/generate', aiLimiter, [
   try {
     const { category, difficulty, additionalInfo, count = 10 } = req.body;
 
-    if (!API_KEY && !GROQ_API_KEY) {
+    if (!OPENROUTER_API_KEY) {
       res.status(503).json({ error: 'AI-Service nicht verfügbar.' });
       return;
     }
@@ -81,52 +85,36 @@ router.post('/generate', aiLimiter, [
       - Sprache: Deutsch, locker und jugendlich
     `;
 
-    let generatedRaw: unknown[];
-
-    if (GROQ_API_KEY) {
-      const groq = new Groq({ apiKey: GROQ_API_KEY });
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
         temperature: 1,
-        max_completion_tokens: 8192,
-        top_p: 1,
-//        reasoning_effort: "medium",
-        response_format: { type: "json_object" },
+        max_tokens: 8192,
+        response_format: { type: 'json_object' },
         messages: [
           {
-            role: "system",
+            role: 'system',
             content: `Du bist ein frecher Challenge-Generator für Freundesgruppen. Antworte IMMER als JSON-Objekt mit einem "challenges"-Array. Jede Challenge hat: title (string), description (string), category (einer aus: ${allowedCategories.join(", ")}), difficulty (EASY|MEDIUM|HARD|INSANE).`
           },
-          { role: "user", content: prompt }
+          { role: 'user', content: prompt }
         ]
-      });
-      const text = completion.choices[0]?.message?.content ?? '{"challenges":[]}';
-      const parsed = JSON.parse(text);
-      generatedRaw = Array.isArray(parsed) ? parsed : (parsed.challenges ?? []);
-    } else {
-      const ai = new GoogleGenAI({ apiKey: API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING, description: "Titel der Challenge" },
-                description: { type: Type.STRING, description: "Was genau muss getan werden?" },
-                category: { type: Type.STRING, description: `Kategorie aus Liste: ${allowedCategories.join(", ")}` },
-                difficulty: { type: Type.STRING, enum: ["EASY", "MEDIUM", "HARD", "INSANE"] }
-              },
-              required: ["title", "description", "category", "difficulty"]
-            }
-          }
-        }
-      });
-      generatedRaw = response.text ? JSON.parse(response.text) : [];
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
     }
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content ?? '{"challenges":[]}';
+    const parsed = parseJsonContent(text);
+    const generatedRaw: unknown[] = Array.isArray(parsed) ? parsed : (parsed.challenges ?? []);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const challenges = generatedRaw.map((item: any) => ({
@@ -162,13 +150,14 @@ router.post('/verify', aiLimiter, [
   try {
     const { title, description, base64Image } = req.body;
 
-    if (!API_KEY) {
+    if (!OPENROUTER_API_KEY) {
       res.json({ verified: true, feedback: "Demo-Modus: Sieht gut aus!" });
       return;
     }
 
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+    const dataUrl = base64Image.startsWith('data:')
+      ? base64Image
+      : `data:image/jpeg;base64,${base64Image}`;
 
     const prompt = `
       Du bist Referee für eine Challenge.
@@ -177,32 +166,40 @@ router.post('/verify', aiLimiter, [
       
       Ist das Bild ein gültiger Beweis? Sei humorvoll aber gerecht.
       
-      Antworte JSON.
+      Antworte als JSON-Objekt mit den Feldern "verified" (boolean) und "feedback" (string).
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-lite",
-      contents: {
-        parts: [
-          { inlineData: { mimeType: "image/jpeg", data: base64Data } },
-          { text: prompt }
-        ]
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            verified: { type: Type.BOOLEAN },
-            feedback: { type: Type.STRING }
-          },
-          required: ["verified", "feedback"]
-        }
-      }
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } }
+            ]
+          }
+        ]
+      })
     });
 
-    if (response.text) {
-      res.json(JSON.parse(response.text));
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content;
+
+    if (text) {
+      res.json(parseJsonContent(text));
     } else {
       res.json({ verified: false, feedback: "Konnte Bild nicht analysieren." });
     }
