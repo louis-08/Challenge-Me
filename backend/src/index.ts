@@ -22,7 +22,8 @@ app.set('trust proxy', 1);
 // --- Security middleware ---
 app.use(helmet());
 app.use(cors({
-  origin: true,
+  // In production only the configured frontend may call the API (trailing slash stripped)
+  origin: IS_PROD ? FRONTEND_URL.replace(/\/+$/, '') : true,
   credentials: true,
   exposedHeaders: ['X-CSRF-Token']
 }));
@@ -45,6 +46,9 @@ app.use(cookieParser());
 const CSRF_HEADER = 'x-csrf-token';
 const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const CSRF_SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET || 'dev-csrf-secret';
+if (IS_PROD && CSRF_SECRET === 'dev-csrf-secret') {
+  throw new Error('CSRF_SECRET or JWT_SECRET must be set in production.');
+}
 
 function generateCsrfToken(): string {
   const random = crypto.randomBytes(32).toString('hex');
@@ -58,7 +62,10 @@ function verifyCsrfToken(token: string): boolean {
   const random = token.slice(0, dotIndex);
   const sig = token.slice(dotIndex + 1);
   const expected = crypto.createHmac('sha256', CSRF_SECRET).update(random).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+  const sigBuf = Buffer.from(sig, 'hex');
+  const expectedBuf = Buffer.from(expected, 'hex');
+  if (sigBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, expectedBuf);
 }
 
 app.use((req: Request, res: Response, next: NextFunction): void => {
